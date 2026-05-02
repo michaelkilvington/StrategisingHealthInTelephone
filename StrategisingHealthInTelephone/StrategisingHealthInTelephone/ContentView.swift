@@ -39,10 +39,10 @@ struct ProfileSetupView: View {
     @State private var name = ""
     @State private var gender = Gender.male
     @State private var birthDate = Calendar.current.date(byAdding: .year, value: -30, to: Date()) ?? Date()
-    @State private var height = 170.0
-    @State private var currentWeight = 70.0
-    @State private var goalWeight = 65.0
-    @State private var weeklyWeightLoss = 0.5
+    @State private var heightText = "170"
+    @State private var currentWeightText = "70.0"
+    @State private var goalWeightText = "65.0"
+    @State private var weeklyWeightLossText = "0.5"
     @State private var activityLevel = ActivityLevel.moderate
     
     var body: some View {
@@ -56,13 +56,45 @@ struct ProfileSetupView: View {
                         }
                     }
                     DatePicker("Birth Date", selection: $birthDate, displayedComponents: .date)
-                    Stepper("Height: \(Int(height)) cm", value: $height, in: 140...220)
-                    Stepper("Current Weight: \(String(format: "%.1f", currentWeight)) kg", value: $currentWeight, in: 40...200, step: 0.1)
+                    
+                    HStack {
+                        Text("Height (cm)")
+                        Spacer()
+                        TextField("170", text: $heightText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    
+                    HStack {
+                        Text("Current Weight (kg)")
+                        Spacer()
+                        TextField("70.0", text: $currentWeightText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
                 }
                 
                 Section("Goals") {
-                    Stepper("Goal Weight: \(String(format: "%.1f", goalWeight)) kg", value: $goalWeight, in: 40...200, step: 0.1)
-                    Stepper("Weekly Loss: \(String(format: "%.1f", weeklyWeightLoss)) kg", value: $weeklyWeightLoss, in: 0.1...2.0, step: 0.1)
+                    HStack {
+                        Text("Goal Weight (kg)")
+                        Spacer()
+                        TextField("65.0", text: $goalWeightText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    
+                    HStack {
+                        Text("Weekly Loss (kg)")
+                        Spacer()
+                        TextField("0.5", text: $weeklyWeightLossText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    
                     Picker("Activity Level", selection: $activityLevel) {
                         ForEach(ActivityLevel.allCases, id: \.self) { level in
                             Text(level.rawValue).tag(level)
@@ -91,7 +123,12 @@ struct ProfileSetupView: View {
     }
     
     func calculateProfile() -> UserProfile? {
-        guard !name.isEmpty else { return nil }
+        guard !name.isEmpty,
+              let height = Double(heightText),
+              let currentWeight = Double(currentWeightText),
+              let goalWeight = Double(goalWeightText),
+              let weeklyWeightLoss = Double(weeklyWeightLossText) else { return nil }
+        
         let profile = UserProfile(
             name: name,
             gender: gender,
@@ -232,16 +269,58 @@ struct SettingsView: View {
 struct BindableProfileSection: View {
     @Bindable var profile: UserProfile
     @Environment(\.modelContext) private var modelContext
+    
+    // Local text state for keyboard input
+    @State private var heightText = ""
+    @State private var currentWeightText = ""
+    @State private var goalWeightText = ""
 
     var body: some View {
-        Stepper("Height: \(Int(profile.height)) cm", value: $profile.height, in: 140...220)
-        Stepper("Current Weight: \(String(format: "%.1f", profile.currentWeight)) kg", value: $profile.currentWeight, in: 40...200, step: 0.1)
-        Stepper("Goal Weight: \(String(format: "%.1f", profile.goalWeight)) kg", value: $profile.goalWeight, in: 40...200, step: 0.1)
+        HStack {
+            Text("Height (cm)")
+            Spacer()
+            TextField("170", text: $heightText)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+                .onAppear { heightText = String(Int(profile.height)) }
+                .onChange(of: heightText) {
+                    if let value = Double(heightText) { profile.height = value }
+                }
+        }
+        
+        HStack {
+            Text("Current Weight (kg)")
+            Spacer()
+            TextField("70.0", text: $currentWeightText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+                .onAppear { currentWeightText = String(format: "%.1f", profile.currentWeight) }
+                .onChange(of: currentWeightText) {
+                    if let value = Double(currentWeightText) { profile.currentWeight = value }
+                }
+        }
+        
+        HStack {
+            Text("Goal Weight (kg)")
+            Spacer()
+            TextField("65.0", text: $goalWeightText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+                .onAppear { goalWeightText = String(format: "%.1f", profile.goalWeight) }
+                .onChange(of: goalWeightText) {
+                    if let value = Double(goalWeightText) { profile.goalWeight = value }
+                }
+        }
+        
         Picker("Activity Level", selection: $profile.activityLevel) {
             ForEach(ActivityLevel.allCases, id: \.self) { level in
                 Text(level.rawValue).tag(level)
             }
         }
+        
         Button("Recalculate Targets") {
             profile.dailyCalorieTarget = profile.calculateDailyCalorieTarget()
             let macros = profile.calculateMacroTargets()
