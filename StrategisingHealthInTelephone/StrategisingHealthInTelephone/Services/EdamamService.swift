@@ -1,0 +1,156 @@
+import Foundation
+
+struct EdamamConfig {
+    static var appId: String = ""
+    static var appKey: String = ""
+}
+
+class EdamamService {
+    static let shared = EdamamService()
+    
+    private let baseURL = "https://api.edamam.com/api/food-database/v2"
+    
+    private init() {}
+    
+    func searchFood(query: String) async throws -> [FoodItem] {
+        guard !EdamamConfig.appId.isEmpty, !EdamamConfig.appKey.isEmpty else {
+            throw EdamamError.notConfigured
+        }
+        
+        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let urlString = "\(baseURL)/parser?app_id=\(EdamamConfig.appId)&app_key=\(EdamamConfig.appKey)&ingr=\(encodedQuery)&nutrition-type=logging"
+        
+        guard let url = URL(string: urlString) else {
+            throw EdamamError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw EdamamError.invalidResponse
+        }
+        
+        let decoder = JSONDecoder()
+        let result = try decoder.decode(EdamamSearchResponse.self, from: data)
+        
+        return result.hints.compactMap { hint in
+            let food = hint.food
+            let nutrients = food.nutrients
+            
+            return FoodItem(
+                name: food.label,
+                brand: food.brand,
+                calories: nutrients.ENERC_KCAL ?? 0,
+                protein: nutrients.PROCNT ?? 0,
+                carbs: nutrients.CHOCDF ?? 0,
+                fat: nutrients.FAT ?? 0,
+                fiber: nutrients.FIBTG ?? 0,
+                sugar: nutrients.SUGAR ?? 0,
+                sodium: nutrients.NA ?? 0,
+                servingSize: hint.measures.first?.weight ?? 100,
+                servingUnit: "g",
+                barcode: food.foodId.contains("barcode") ? food.foodId : nil,
+                edamamId: food.foodId
+            )
+        }
+    }
+    
+    func lookupBarcode(_ barcode: String) async throws -> FoodItem? {
+        guard !EdamamConfig.appId.isEmpty, !EdamamConfig.appKey.isEmpty else {
+            throw EdamamError.notConfigured
+        }
+        
+        let urlString = "\(baseURL)/parser?app_id=\(EdamamConfig.appId)&app_key=\(EdamamConfig.appKey)&upc=\(barcode)&nutrition-type=logging"
+        
+        guard let url = URL(string: urlString) else {
+            throw EdamamError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw EdamamError.invalidResponse
+        }
+        
+        let decoder = JSONDecoder()
+        let result = try decoder.decode(EdamamSearchResponse.self, from: data)
+        
+        guard let firstHint = result.hints.first else { return nil }
+        
+        let food = firstHint.food
+        let nutrients = food.nutrients
+        
+        return FoodItem(
+            name: food.label,
+            brand: food.brand,
+            calories: nutrients.ENERC_KCAL ?? 0,
+            protein: nutrients.PROCNT ?? 0,
+            carbs: nutrients.CHOCDF ?? 0,
+            fat: nutrients.FAT ?? 0,
+            fiber: nutrients.FIBTG ?? 0,
+            sugar: nutrients.SUGAR ?? 0,
+            sodium: nutrients.NA ?? 0,
+            servingSize: firstHint.measures.first?.weight ?? 100,
+            servingUnit: "g",
+            barcode: barcode,
+            edamamId: food.foodId
+        )
+    }
+}
+
+enum EdamamError: Error {
+    case notConfigured
+    case invalidURL
+    case invalidResponse
+    case noResults
+}
+
+struct EdamamSearchResponse: Codable {
+    let hints: [Hint]
+}
+
+struct Hint: Codable {
+    let food: EdamamFood
+    let measures: [EdamamMeasure]
+}
+
+struct EdamamFood: Codable {
+    let foodId: String
+    let label: String
+    let brand: String?
+    let nutrients: EdamamNutrients
+    let category: String?
+}
+
+struct EdamamNutrients: Codable {
+    let ENERC_KCAL: Double?
+    let PROCNT: Double?
+    let CHOCDF: Double?
+    let FAT: Double?
+    let FIBTG: Double?
+    let SUGAR: Double?
+    let NA: Double?
+}
+
+struct EdamamMeasure: Codable {
+    let label: String
+    let weight: Double
+    let qualified: [EdamamQualified]?
+}
+
+struct EdamamQualified: Codable {
+    let qualifiers: [EdamamQualifier]
+    let weight: Double
+}
+
+struct EdamamQualifier: Codable {
+    let label: String
+}
