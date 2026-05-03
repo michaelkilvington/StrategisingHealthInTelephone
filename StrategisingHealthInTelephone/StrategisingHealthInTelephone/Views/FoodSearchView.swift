@@ -12,6 +12,7 @@ struct FoodSearchView: View {
     @State private var isSearching = false
     @State private var selectedFood: FoodItem?
     @State private var showingDetail = false
+    @State private var errorMessage: String?  // ✅ Added
     
     var body: some View {
         NavigationStack {
@@ -27,7 +28,7 @@ struct FoodSearchView: View {
                 }
                 .padding()
                 
-                contentView
+                foodSearchResultsView
             }
             .navigationTitle("Add \(mealType.rawValue)")
             .navigationBarTitleDisplayMode(.inline)
@@ -48,9 +49,22 @@ struct FoodSearchView: View {
     }
     
     @ViewBuilder
-    private var contentView: some View {
+    private var foodSearchResultsView: some View {
         if isSearching {
-            ProgressView("Searching...")
+            SwiftUI.ProgressView("Searching...")  // ✅ Prefixed to avoid name clash
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let error = errorMessage {
+            // ✅ Now you'll see exactly what's going wrong
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.largeTitle)
+                    .foregroundColor(.orange)
+                Text(error)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if searchResults.isEmpty && !searchText.isEmpty {
             VStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
@@ -75,6 +89,7 @@ struct FoodSearchView: View {
         
         isSearching = true
         searchResults = []
+        errorMessage = nil  // ✅ Clear previous error
         
         Task {
             do {
@@ -82,11 +97,14 @@ struct FoodSearchView: View {
                 await MainActor.run {
                     searchResults = results
                     isSearching = false
+                    if results.isEmpty {
+                        errorMessage = "No results found for \"\(searchText)\""
+                    }
                 }
             } catch {
                 await MainActor.run {
                     isSearching = false
-                    print("Search error: \(error)")
+                    errorMessage = error.localizedDescription  // ✅ Show error to user
                 }
             }
         }

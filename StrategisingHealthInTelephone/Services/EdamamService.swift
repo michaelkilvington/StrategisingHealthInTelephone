@@ -1,14 +1,8 @@
 import Foundation
 
 struct EdamamConfig {
-    static var appId: String {
-        get { UserDefaults.standard.string(forKey: "edamam_app_id") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "edamam_app_id") }
-    }
-    static var appKey: String {
-        get { UserDefaults.standard.string(forKey: "edamam_app_key") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "edamam_app_key") }
-    }
+    static var appId: String = ""
+    static var appKey: String = ""
 }
 
 class EdamamService {
@@ -36,15 +30,8 @@ class EdamamService {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw EdamamError.invalidResponse
-        }
-        
-        switch httpResponse.statusCode {
-        case 200: break
-        case 401: throw EdamamError.unauthorized
-        case 429: throw EdamamError.rateLimited
-        default: throw EdamamError.invalidResponse
         }
         
         let decoder = JSONDecoder()
@@ -66,7 +53,7 @@ class EdamamService {
                 sodium: nutrients.NA ?? 0,
                 servingSize: hint.measures.first?.weight ?? 100,
                 servingUnit: "g",
-                barcode: nil, // ✅ Fixed: foodId never contains "barcode"
+                barcode: food.foodId.contains("barcode") ? food.foodId : nil,
                 edamamId: food.foodId
             )
         }
@@ -89,23 +76,14 @@ class EdamamService {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw EdamamError.invalidResponse
-        }
-        
-        switch httpResponse.statusCode {
-        case 200: break
-        case 401: throw EdamamError.unauthorized
-        case 429: throw EdamamError.rateLimited
-        default: throw EdamamError.invalidResponse
         }
         
         let decoder = JSONDecoder()
         let result = try decoder.decode(EdamamSearchResponse.self, from: data)
         
-        guard let firstHint = result.hints.first else {
-            throw EdamamError.noResults
-        }
+        guard let firstHint = result.hints.first else { return nil }
         
         let food = firstHint.food
         let nutrients = food.nutrients
@@ -128,24 +106,11 @@ class EdamamService {
     }
 }
 
-enum EdamamError: LocalizedError {
+enum EdamamError: Error {
     case notConfigured
     case invalidURL
     case invalidResponse
-    case unauthorized
-    case rateLimited
     case noResults
-    
-    var errorDescription: String? {
-        switch self {
-        case .notConfigured: return "Edamam API keys not configured. Go to Settings to add them."
-        case .invalidURL: return "Invalid request URL."
-        case .invalidResponse: return "Unexpected response from Edamam."
-        case .unauthorized: return "Invalid Edamam API credentials. Check your App ID and App Key in Settings."
-        case .rateLimited: return "Edamam API rate limit reached. Please wait a moment and try again."
-        case .noResults: return "No food found for this barcode."
-        }
-    }
 }
 
 struct EdamamSearchResponse: Codable {
