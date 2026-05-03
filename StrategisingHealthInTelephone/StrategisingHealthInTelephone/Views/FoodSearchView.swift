@@ -1,17 +1,34 @@
 import SwiftUI
 import SwiftData
 
+struct FoodSearchResult: Identifiable {
+    let id = UUID()
+    let name: String
+    let brand: String?
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fat: Double
+    let fiber: Double
+    let sugar: Double
+    let sodium: Double
+    let servingSize: Double
+    let servingUnit: String
+    let barcode: String?
+    let offId: String?
+}
+
 struct FoodSearchView: View {
     let mealType: MealType
     let dailyLog: DailyLog
+    let onFoodAdded: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
     @State private var searchText = ""
-    @State private var searchResults: [FoodItem] = []
+    @State private var searchResults: [FoodSearchResult] = []
     @State private var isSearching = false
-    @State private var selectedFood: FoodItem?
-    @State private var showingDetail = false
+    @State private var detailFood: FoodSearchResult?
     @State private var errorMessage: String?
     @State private var showingBarcodeScanner = false
     @State private var isBarcodeSearching = false
@@ -64,10 +81,16 @@ struct FoodSearchView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showingDetail) {
-                if let food = selectedFood {
-                    FoodDetailView(food: food, mealType: mealType, dailyLog: dailyLog)
-                }
+            .sheet(item: $detailFood) { food in
+                FoodDetailView(
+                    food: food,
+                    mealType: mealType,
+                    dailyLog: dailyLog,
+                    onFoodAdded: {
+                        dismiss()
+                        onFoodAdded()
+                    }
+                )
             }
             .sheet(isPresented: $showingBarcodeScanner) {
                 BarcodeScannerView { barcode in
@@ -118,8 +141,7 @@ struct FoodSearchView: View {
         } else if !searchResults.isEmpty {
             List(searchResults, id: \.id) { food in
                 FoodResultRow(food: food) {
-                    selectedFood = food
-                    showingDetail = true
+                    detailFood = food
                 }
             }
             .listStyle(.plain)
@@ -179,9 +201,25 @@ struct FoodSearchView: View {
             do {
                 let results = try await OpenFoodFactsService.shared.searchFood(query: searchText)
                 await MainActor.run {
-                    searchResults = results
+                    searchResults = results.map { food in
+                        FoodSearchResult(
+                            name: food.name,
+                            brand: food.brand,
+                            calories: food.calories,
+                            protein: food.protein,
+                            carbs: food.carbs,
+                            fat: food.fat,
+                            fiber: food.fiber,
+                            sugar: food.sugar,
+                            sodium: food.sodium,
+                            servingSize: food.servingSize,
+                            servingUnit: food.servingUnit,
+                            barcode: food.barcode,
+                            offId: food.offId
+                        )
+                    }
                     isSearching = false
-                    if results.isEmpty {
+                    if searchResults.isEmpty {
                         errorMessage = "No results found for \"\(searchText)\""
                     }
                 }
@@ -201,10 +239,26 @@ struct FoodSearchView: View {
         Task {
             do {
                 if let foodItem = try await OpenFoodFactsService.shared.lookupBarcode(barcode) {
+                    let result = FoodSearchResult(
+                        name: foodItem.name,
+                        brand: foodItem.brand,
+                        calories: foodItem.calories,
+                        protein: foodItem.protein,
+                        carbs: foodItem.carbs,
+                        fat: foodItem.fat,
+                        fiber: foodItem.fiber,
+                        sugar: foodItem.sugar,
+                        sodium: foodItem.sodium,
+                        servingSize: foodItem.servingSize,
+                        servingUnit: foodItem.servingUnit,
+                        barcode: foodItem.barcode,
+                        offId: foodItem.offId
+                    )
                     await MainActor.run {
-                        addFoodToMeal(foodItem)
                         isBarcodeSearching = false
-                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            detailFood = result
+                        }
                     }
                 } else {
                     await MainActor.run {
@@ -221,18 +275,36 @@ struct FoodSearchView: View {
         }
     }
     
-    func addFoodToMeal(_ food: FoodItem) {
-        modelContext.insert(food)
+    func addFoodToMeal(_ food: FoodSearchResult, servings: Double) {
+        let newFood = FoodItem(
+            name: food.name,
+            brand: food.brand,
+            calories: food.calories * servings,
+            protein: food.protein * servings,
+            carbs: food.carbs * servings,
+            fat: food.fat * servings,
+            fiber: food.fiber * servings,
+            sugar: food.sugar * servings,
+            sodium: food.sodium * servings,
+            servingSize: food.servingSize * servings,
+            servingUnit: food.servingUnit,
+            barcode: food.barcode,
+            offId: food.offId
+        )
+        
+        modelContext.insert(newFood)
         
         if let meal = (dailyLog.meals ?? []).first(where: { $0.type == mealType }) {
             if meal.foodItems == nil {
-                meal.foodItems = [food]
+                meal.foodItems = [newFood]
             } else {
-                meal.foodItems?.append(food)
+                meal.foodItems?.append(newFood)
             }
         }
         
         try? modelContext.save()
+        dismiss()
+        onFoodAdded()
     }
 }
 
@@ -256,7 +328,7 @@ struct TipPill: View {
 }
 
 struct FoodResultRow: View {
-    let food: FoodItem
+    let food: FoodSearchResult
     let onTap: () -> Void
     
     var body: some View {
@@ -285,13 +357,22 @@ struct FoodResultRow: View {
 }
 
 struct FoodDetailView: View {
-    let food: FoodItem
+    let food: FoodSearchResult
     let mealType: MealType
     let dailyLog: DailyLog
+    let onFoodAdded: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
     @State private var servings: Double = 1.0
+    
+    private var adjustedCalories: Double { food.calories * servings }
+    private var adjustedProtein: Double { food.protein * servings }
+    private var adjustedCarbs: Double { food.carbs * servings }
+    private var adjustedFat: Double { food.fat * servings }
+    private var adjustedFiber: Double { food.fiber * servings }
+    private var adjustedSugar: Double { food.sugar * servings }
+    private var adjustedSodium: Double { food.sodium * servings }
     
     var body: some View {
         NavigationStack {
@@ -314,13 +395,13 @@ struct FoodDetailView: View {
                 }
                 
                 Section("Nutrition per Serving") {
-                    NutritionRow(label: "Calories", value: food.calories * servings, unit: "kcal")
-                    NutritionRow(label: "Protein", value: food.protein * servings, unit: "g")
-                    NutritionRow(label: "Carbohydrates", value: food.carbs * servings, unit: "g")
-                    NutritionRow(label: "Fat", value: food.fat * servings, unit: "g")
-                    NutritionRow(label: "Fiber", value: food.fiber * servings, unit: "g")
-                    NutritionRow(label: "Sugar", value: food.sugar * servings, unit: "g")
-                    NutritionRow(label: "Sodium", value: food.sodium * servings, unit: "mg")
+                    NutritionRow(label: "Calories", value: adjustedCalories, unit: "kcal")
+                    NutritionRow(label: "Protein", value: adjustedProtein, unit: "g")
+                    NutritionRow(label: "Carbohydrates", value: adjustedCarbs, unit: "g")
+                    NutritionRow(label: "Fat", value: adjustedFat, unit: "g")
+                    NutritionRow(label: "Fiber", value: adjustedFiber, unit: "g")
+                    NutritionRow(label: "Sugar", value: adjustedSugar, unit: "g")
+                    NutritionRow(label: "Sodium", value: adjustedSodium, unit: "mg")
                 }
                 
                 Section {
@@ -337,34 +418,35 @@ struct FoodDetailView: View {
     }
     
     func addFoodToMeal() {
-        let adjustedFood = FoodItem(
+        let newFood = FoodItem(
             name: food.name,
             brand: food.brand,
-            calories: food.calories * servings,
-            protein: food.protein * servings,
-            carbs: food.carbs * servings,
-            fat: food.fat * servings,
-            fiber: food.fiber * servings,
-            sugar: food.sugar * servings,
-            sodium: food.sodium * servings,
+            calories: adjustedCalories,
+            protein: adjustedProtein,
+            carbs: adjustedCarbs,
+            fat: adjustedFat,
+            fiber: adjustedFiber,
+            sugar: adjustedSugar,
+            sodium: adjustedSodium,
             servingSize: food.servingSize * servings,
             servingUnit: food.servingUnit,
             barcode: food.barcode,
-            edamamId: food.edamamId
+            offId: food.offId
         )
         
-        modelContext.insert(adjustedFood)
+        modelContext.insert(newFood)
         
         if let meal = (dailyLog.meals ?? []).first(where: { $0.type == mealType }) {
             if meal.foodItems == nil {
-                meal.foodItems = [adjustedFood]
+                meal.foodItems = [newFood]
             } else {
-                meal.foodItems?.append(adjustedFood)
+                meal.foodItems?.append(newFood)
             }
         }
         
         try? modelContext.save()
         dismiss()
+        onFoodAdded()
     }
 }
 

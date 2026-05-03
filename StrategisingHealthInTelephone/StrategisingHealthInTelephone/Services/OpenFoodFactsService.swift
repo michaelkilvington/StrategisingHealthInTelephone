@@ -71,6 +71,10 @@ class OpenFoodFactsService {
             throw OFFError.invalidResponse
         }
         
+        print("Barcode status: \(httpResponse.statusCode)")
+            print("Barcode response: \(String(data: data, encoding: .utf8)?.prefix(1000) ?? "unreadable")")
+            
+        
         switch httpResponse.statusCode {
         case 200: break
         case 429: throw OFFError.rateLimited
@@ -90,11 +94,11 @@ class OpenFoodFactsService {
     // MARK: - Shared mapping
     
     private func foodItem(from product: OFFProduct, barcode: String?) -> FoodItem {
-        let nutriments = product.nutriments
+
+        let nutriments = product.nutriments ?? OFFNutriments.empty
         let name = product.productName ?? "Unknown Product"
-        let brand = product.brands
+        let brand = product.brands?.joined(separator: ", ")
         
-        // ✅ Prefer per-serving values if available, fall back to per-100g
         let servingSize = parseServingSize(product.servingSize)
         let useServing = servingSize > 0
         
@@ -116,7 +120,6 @@ class OpenFoodFactsService {
         let sugar = useServing
             ? (nutriments.sugarsServing ?? nutriments.sugars100g ?? 0)
             : (nutriments.sugars100g ?? 0)
-        // ✅ OFF stores sodium in g, convert to mg
         let sodiumG = useServing
             ? (nutriments.sodiumServing ?? nutriments.sodium100g ?? 0)
             : (nutriments.sodium100g ?? 0)
@@ -134,7 +137,7 @@ class OpenFoodFactsService {
             servingSize: useServing ? servingSize : 100,
             servingUnit: useServing ? "serving" : "g",
             barcode: barcode,
-            edamamId: nil
+            offId: nil
         )
     }
     
@@ -181,8 +184,8 @@ private struct OFFProductResponse: Codable {
 private struct OFFProduct: Codable {
     let code: String?
     let productName: String?
-    let brands: String?
-    let nutriments: OFFNutriments
+    let brands: [String]?
+    let nutriments: OFFNutriments?
     let servingSize: String?
     
     enum CodingKeys: String, CodingKey {
@@ -192,10 +195,26 @@ private struct OFFProduct: Codable {
         case nutriments
         case servingSize = "serving_size"
     }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decodeIfPresent(String.self, forKey: .code)
+        productName = try container.decodeIfPresent(String.self, forKey: .productName)
+        nutriments = try container.decodeIfPresent(OFFNutriments.self, forKey: .nutriments)
+        servingSize = try container.decodeIfPresent(String.self, forKey: .servingSize)
+        
+
+        if let brandsArray = try? container.decodeIfPresent([String].self, forKey: .brands) {
+            brands = brandsArray
+        } else if let brandsString = try? container.decodeIfPresent(String.self, forKey: .brands) {
+            brands = brandsString.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        } else {
+            brands = nil
+        }
+    }
 }
 
 private struct OFFNutriments: Codable {
-    // Per 100g
     let energyKcal100g: Double?
     let proteins100g: Double?
     let carbohydrates100g: Double?
@@ -203,8 +222,6 @@ private struct OFFNutriments: Codable {
     let fiber100g: Double?
     let sugars100g: Double?
     let sodium100g: Double?
-    
-    // Per serving
     let energyKcalServing: Double?
     let proteinsServing: Double?
     let carbohydratesServing: Double?
@@ -212,6 +229,13 @@ private struct OFFNutriments: Codable {
     let fiberServing: Double?
     let sugarsServing: Double?
     let sodiumServing: Double?
+    
+    static let empty = OFFNutriments(
+        energyKcal100g: nil, proteins100g: nil, carbohydrates100g: nil,
+        fat100g: nil, fiber100g: nil, sugars100g: nil, sodium100g: nil,
+        energyKcalServing: nil, proteinsServing: nil, carbohydratesServing: nil,
+        fatServing: nil, fiberServing: nil, sugarsServing: nil, sodiumServing: nil
+    )
     
     enum CodingKeys: String, CodingKey {
         case energyKcal100g         = "energy-kcal_100g"

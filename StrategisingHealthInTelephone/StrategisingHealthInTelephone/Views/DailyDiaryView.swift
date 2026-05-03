@@ -41,17 +41,13 @@ struct DailyDiaryView: View {
                         calorieProgressSection(log: log)
                         macroProgressSection(log: log)
                         
-                        ForEach(MealType.allCases, id: \.self) { mealType in
-                            let meal = (log.meals ?? []).first { $0.type == mealType }
-                            MealSectionView(
-                                mealType: mealType,
-                                meal: meal,
-                                onAddFood: {
-                                    selectedMealType = mealType
-                                    showingFoodSearch = true
-                                }
-                            )
-                        }
+                        MealListView(
+                            log: log,
+                            onAddFood: { mealType in
+                                selectedMealType = mealType
+                                showingFoodSearch = true
+                            }
+                        )
                         
                         projectionButton(log: log)
                         
@@ -86,7 +82,13 @@ struct DailyDiaryView: View {
             }
             .sheet(isPresented: $showingFoodSearch) {
                 if let log = dailyLog, let mealType = selectedMealType {
-                    FoodSearchView(mealType: mealType, dailyLog: log)
+                    FoodSearchView(
+                        mealType: mealType,
+                        dailyLog: log,
+                        onFoodAdded: {
+                            showingFoodSearch = false
+                        }
+                    )
                 }
             }
             .alert("Calorie Projection", isPresented: $showingCompletionAlert) {
@@ -219,6 +221,22 @@ struct DailyDiaryView: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(10)
+    }
+}
+
+struct MealListView: View {
+    let log: DailyLog
+    let onAddFood: (MealType) -> Void
+    
+    var body: some View {
+        ForEach(MealType.allCases, id: \.self) { mealType in
+            let meal = (log.meals ?? []).first { $0.type == mealType }
+            MealSectionView(
+                mealType: mealType,
+                meal: meal,
+                onAddFood: { onAddFood(mealType) }
+            )
+        }
     }
 }
 

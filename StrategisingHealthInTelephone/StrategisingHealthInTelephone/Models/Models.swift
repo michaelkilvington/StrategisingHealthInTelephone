@@ -46,7 +46,7 @@ final class FoodItem {
     var servingSize: Double = 100.0
     var servingUnit: String = "g"
     var barcode: String? = nil
-    var edamamId: String? = nil
+    var offId: String? = nil
     var dateAdded: Date = Date()
     
     var meal: Meal? = nil
@@ -65,7 +65,7 @@ final class FoodItem {
         servingSize: Double = 100,
         servingUnit: String = "g",
         barcode: String? = nil,
-        edamamId: String? = nil
+        offId: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -80,7 +80,7 @@ final class FoodItem {
         self.servingSize = servingSize
         self.servingUnit = servingUnit
         self.barcode = barcode
-        self.edamamId = edamamId
+        self.offId = offId
         self.dateAdded = Date()
     }
 }

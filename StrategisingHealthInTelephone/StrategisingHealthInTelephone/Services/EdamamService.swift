@@ -64,8 +64,8 @@ class EdamamService {
                 sodium: nutrients.NA ?? 0,
                 servingSize: hint.measures.first?.weight ?? 100,
                 servingUnit: "g",
-                barcode: nil, // ✅ Fixed: foodId never contains "barcode"
-                edamamId: food.foodId
+                barcode: nil,
+                offId: food.foodId
             )
         }
     }
@@ -129,7 +129,7 @@ class EdamamService {
             servingSize: firstHint.measures.first?.weight ?? 100,
             servingUnit: "g",
             barcode: barcode,
-            edamamId: food.foodId
+            offId: food.foodId
         )
     }
 }
