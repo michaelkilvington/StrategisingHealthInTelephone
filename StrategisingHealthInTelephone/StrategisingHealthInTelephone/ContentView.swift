@@ -37,7 +37,7 @@ struct ContentView: View {
 struct ProfileSetupView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var name = ""
-    @State private var gender = Gender.male
+    @State private var sex = Sex.male
     @State private var birthDate = Calendar.current.date(byAdding: .year, value: -30, to: Date()) ?? Date()
     @State private var heightText = "170"
     @State private var currentWeightText = "70.0"
@@ -50,8 +50,8 @@ struct ProfileSetupView: View {
             Form {
                 Section("Personal Information") {
                     TextField("Name", text: $name)
-                    Picker("Gender", selection: $gender) {
-                        ForEach(Gender.allCases, id: \.self) { g in
+                    Picker("Sex", selection: $sex) {
+                        ForEach(Sex.allCases, id: \.self) { g in
                             Text(g.rawValue).tag(g)
                         }
                     }
@@ -131,7 +131,7 @@ struct ProfileSetupView: View {
         
         let profile = UserProfile(
             name: name,
-            gender: gender,
+            sex: sex,
             birthDate: birthDate,
             height: height,
             currentWeight: currentWeight,

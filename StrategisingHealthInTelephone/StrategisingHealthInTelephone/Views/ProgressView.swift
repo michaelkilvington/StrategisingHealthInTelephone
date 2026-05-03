@@ -279,9 +279,9 @@ struct WeightLogRow: View {
     let log: WeightLog
     let onDelete: () -> Void
     
-    @State private var showingPhotoPicker = false
+    @State private var showingCamera = false
     @State private var showingPhoto = false
-    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var capturedImageData: Data? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -307,7 +307,7 @@ struct WeightLogRow: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                     } else {
-                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                        Button(action: { showingCamera = true }) {
                             Image(systemName: "camera")
                                 .foregroundColor(.blue)
                                 .frame(width: 44, height: 44)
@@ -322,12 +322,15 @@ struct WeightLogRow: View {
             }
         }
         .padding(.vertical, 10)
-        .onChange(of: selectedPhotoItem) {
-            Task {
-                if let data = try? await selectedPhotoItem?.loadTransferable(type: Data.self) {
-                    log.photo = data
-                }
+        .onChange(of: capturedImageData) {
+            if let data = capturedImageData {
+                log.photo = data
+                capturedImageData = nil
             }
+        }
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraView(imageData: $capturedImageData)
+                .ignoresSafeArea()
         }
         .sheet(isPresented: $showingPhoto) {
             if let photoData = log.photo, let uiImage = UIImage(data: photoData) {
@@ -407,7 +410,7 @@ struct AddWeightView: View {
     
     @State private var selectedDate = Date()
     @State private var weight = ""
-    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var showingCamera = false
     @State private var photoData: Data? = nil
     @Query private var profiles: [UserProfile]
     
@@ -442,12 +445,11 @@ struct AddWeightView: View {
                             Spacer()
                             Button("Remove", role: .destructive) {
                                 photoData = nil
-                                selectedPhotoItem = nil
                             }
                         }
                     } else {
-                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                            Label("Add Photo", systemImage: "camera")
+                        Button(action: { showingCamera = true }) {
+                            Label("Take Photo", systemImage: "camera")
                         }
                     }
                 }
@@ -467,12 +469,9 @@ struct AddWeightView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .onChange(of: selectedPhotoItem) {
-                Task {
-                    if let data = try? await selectedPhotoItem?.loadTransferable(type: Data.self) {
-                        photoData = data
-                    }
-                }
+            .fullScreenCover(isPresented: $showingCamera) {
+                CameraView(imageData: $photoData)
+                    .ignoresSafeArea()
             }
         }
     }

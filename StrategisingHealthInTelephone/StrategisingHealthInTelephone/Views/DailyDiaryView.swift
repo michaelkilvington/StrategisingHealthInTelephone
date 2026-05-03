@@ -26,9 +26,7 @@ struct DailyDiaryView: View {
     }
     
     var navigationTitle: String {
-        if isToday {
-            return "Today's Diary"
-        }
+        if isToday { return "Today's Diary" }
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
         return formatter.string(from: selectedDate)
@@ -45,9 +43,10 @@ struct DailyDiaryView: View {
                         macroProgressSection(log: log)
                         
                         ForEach(MealType.allCases, id: \.self) { mealType in
+                            let meal = (log.meals ?? []).first { $0.type == mealType }
                             MealSectionView(
                                 mealType: mealType,
-                                meal: log.meals.first { $0.type == mealType },
+                                meal: meal,
                                 onAddFood: {
                                     selectedMealType = mealType
                                     showingFoodSearch = true
@@ -83,9 +82,7 @@ struct DailyDiaryView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingBarcodeScanner = true
-                    }) {
+                    Button(action: { showingBarcodeScanner = true }) {
                         Image(systemName: "barcode.viewfinder")
                     }
                 }
@@ -155,16 +152,25 @@ struct DailyDiaryView: View {
     
     func setupDailyLog() {
         if let existing = todaysLogs.first {
+            let existingMeals = existing.meals ?? []
             for mealType in MealType.allCases {
-                if !existing.meals.contains(where: { $0.type == mealType }) {
-                    existing.meals.append(Meal(type: mealType, date: selectedDate))
+                if !existingMeals.contains(where: { $0.type == mealType }) {
+                    if existing.meals == nil {
+                        existing.meals = [Meal(type: mealType, date: selectedDate)]
+                    } else {
+                        existing.meals?.append(Meal(type: mealType, date: selectedDate))
+                    }
                 }
             }
             dailyLog = existing
         } else {
             let newLog = DailyLog(date: Calendar.current.startOfDay(for: selectedDate))
             for mealType in MealType.allCases {
-                newLog.meals.append(Meal(type: mealType, date: selectedDate))
+                if newLog.meals == nil {
+                    newLog.meals = [Meal(type: mealType, date: selectedDate)]
+                } else {
+                    newLog.meals?.append(Meal(type: mealType, date: selectedDate))
+                }
             }
             modelContext.insert(newLog)
             dailyLog = newLog
@@ -309,8 +315,8 @@ struct MealSectionView: View {
                 }
             }
             
-            if let meal = meal, !meal.foodItems.isEmpty {
-                ForEach(meal.foodItems, id: \.id) { food in
+            if let meal = meal, !(meal.foodItems ?? []).isEmpty {
+                ForEach(meal.foodItems ?? [], id: \.id) { food in
                     HStack {
                         VStack(alignment: .leading) {
                             Text(food.name)

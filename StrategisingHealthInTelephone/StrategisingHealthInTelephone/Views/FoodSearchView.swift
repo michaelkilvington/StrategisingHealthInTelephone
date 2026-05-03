@@ -212,8 +212,12 @@ struct FoodDetailView: View {
         
         modelContext.insert(adjustedFood)
         
-        if let meal = dailyLog.meals.first(where: { $0.type == mealType }) {
-            meal.foodItems.append(adjustedFood)
+        if let meal = (dailyLog.meals ?? []).first(where: { $0.type == mealType }) {
+            if meal.foodItems == nil {
+                meal.foodItems = [adjustedFood]
+            } else {
+                meal.foodItems?.append(adjustedFood)
+            }
         }
         
         try? modelContext.save()

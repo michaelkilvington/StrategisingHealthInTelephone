@@ -86,15 +86,6 @@ struct SettingsView: View {
                     .foregroundColor(.blue)
                     .disabled(Int(jsonImportStartYear) == nil)  // ✅ Disable if year is invalid
                 }
-
-                Section("Cloud Sync") {
-                    Button("Sync to iCloud") {
-                        Task {
-                            await CloudKitService.shared.syncAllData(modelContext: modelContext)
-                        }
-                    }
-                    .foregroundColor(.blue)
-                }
             }
             .navigationTitle("Settings")
             .fileExporter(
