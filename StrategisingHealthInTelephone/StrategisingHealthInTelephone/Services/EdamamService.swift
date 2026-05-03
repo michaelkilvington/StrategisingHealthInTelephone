@@ -75,7 +75,11 @@ class EdamamService {
             throw EdamamError.notConfigured
         }
         
+        // ✅ Log the barcode being sent so we can verify the format
+        print("Looking up barcode: '\(barcode)'")
+        
         let urlString = "\(baseURL)/parser?app_id=\(EdamamConfig.appId)&app_key=\(EdamamConfig.appKey)&upc=\(barcode)&nutrition-type=logging"
+        print("Request URL: \(urlString)")
         
         guard let url = URL(string: urlString) else {
             throw EdamamError.invalidURL
@@ -90,6 +94,10 @@ class EdamamService {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw EdamamError.invalidResponse
         }
+        
+        // ✅ Log the actual status code and raw response body
+        print("Barcode lookup status: \(httpResponse.statusCode)")
+        print("Response body: \(String(data: data, encoding: .utf8) ?? "unreadable")")
         
         switch httpResponse.statusCode {
         case 200: break

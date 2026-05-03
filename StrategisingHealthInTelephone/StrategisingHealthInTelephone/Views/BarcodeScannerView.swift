@@ -3,10 +3,14 @@ import AVFoundation
 
 struct BarcodeScannerView: UIViewControllerRepresentable {
     let onBarcodeScanned: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
     
     func makeUIViewController(context: Context) -> BarcodeScannerViewController {
         let controller = BarcodeScannerViewController()
-        controller.onBarcodeScanned = onBarcodeScanned
+        controller.onBarcodeScanned = { barcode in
+            onBarcodeScanned(barcode)
+            dismiss()
+        }
         return controller
     }
     
@@ -31,6 +35,7 @@ class BarcodeScannerViewController: UIViewController, AVCaptureMetadataOutputObj
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        isProcessing = false
         if captureSession?.isRunning == false {
             DispatchQueue.global(qos: .userInitiated).async {
                 self.captureSession?.startRunning()
@@ -48,6 +53,21 @@ class BarcodeScannerViewController: UIViewController, AVCaptureMetadataOutputObj
     }
     
     private func setupCamera() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureCaptureSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                if granted {
+                    DispatchQueue.main.async { self.configureCaptureSession() }
+                }
+            }
+        default:
+            return
+        }
+    }
+    
+    private func configureCaptureSession() {
         let session = AVCaptureSession()
         
         guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return }
@@ -110,6 +130,7 @@ class BarcodeScannerViewController: UIViewController, AVCaptureMetadataOutputObj
         let label = UILabel()
         label.text = "Position barcode within frame"
         label.textColor = .white
+        label.font = UIFont.systemFont(ofSize: 14, weight: .medium)
         label.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(label)
         
@@ -132,7 +153,6 @@ class BarcodeScannerViewController: UIViewController, AVCaptureMetadataOutputObj
             AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
             captureSession?.stopRunning()
             onBarcodeScanned?(stringValue)
-            dismiss(animated: true)
         }
     }
 }

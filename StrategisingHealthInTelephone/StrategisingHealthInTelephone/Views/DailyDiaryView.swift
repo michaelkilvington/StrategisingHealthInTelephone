@@ -8,7 +8,6 @@ struct DailyDiaryView: View {
     
     @State private var selectedMealType: MealType?
     @State private var showingFoodSearch = false
-    @State private var showingBarcodeScanner = false
     @State private var showingCompletionAlert = false
     @State private var projectedWeightLoss: Double = 0
     @State private var dailyLog: DailyLog?
@@ -81,11 +80,6 @@ struct DailyDiaryView: View {
                         Image(systemName: "calendar")
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingBarcodeScanner = true }) {
-                        Image(systemName: "barcode.viewfinder")
-                    }
-                }
             }
             .sheet(isPresented: $showingDatePicker) {
                 DatePickerSheet(selectedDate: $selectedDate)
@@ -93,11 +87,6 @@ struct DailyDiaryView: View {
             .sheet(isPresented: $showingFoodSearch) {
                 if let log = dailyLog, let mealType = selectedMealType {
                     FoodSearchView(mealType: mealType, dailyLog: log)
-                }
-            }
-            .sheet(isPresented: $showingBarcodeScanner) {
-                BarcodeScannerView { barcode in
-                    handleBarcodeScan(barcode)
                 }
             }
             .alert("Calorie Projection", isPresented: $showingCompletionAlert) {
@@ -230,18 +219,6 @@ struct DailyDiaryView: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(10)
-    }
-    
-    func handleBarcodeScan(_ barcode: String) {
-        Task {
-            do {
-                if let foodItem = try await EdamamService.shared.lookupBarcode(barcode) {
-                    modelContext.insert(foodItem)
-                }
-            } catch {
-                print("Barcode lookup failed: \(error)")
-            }
-        }
     }
 }
 

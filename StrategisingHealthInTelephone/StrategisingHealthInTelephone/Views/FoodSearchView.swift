@@ -12,19 +12,46 @@ struct FoodSearchView: View {
     @State private var isSearching = false
     @State private var selectedFood: FoodItem?
     @State private var showingDetail = false
-    @State private var errorMessage: String?  // ✅ Added
+    @State private var errorMessage: String?
+    @State private var showingBarcodeScanner = false
+    @State private var isBarcodeSearching = false
     
     var body: some View {
         NavigationStack {
-            VStack {
-                HStack {
-                    TextField("Search food...", text: $searchText)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField("Search food...", text: $searchText)
+                            .onSubmit { searchFood() }
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                                searchResults = []
+                                errorMessage = nil
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .background(Color(.systemGray5))
+                    .cornerRadius(10)
                     
                     Button(action: searchFood) {
-                        Image(systemName: "magnifyingglass")
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(searchText.isEmpty || isSearching ? .gray : .blue)
                     }
                     .disabled(searchText.isEmpty || isSearching)
+                    
+                    Button(action: { showingBarcodeScanner = true }) {
+                        Image(systemName: "barcode.viewfinder")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                    }
                 }
                 .padding()
                 
@@ -42,59 +69,115 @@ struct FoodSearchView: View {
                     FoodDetailView(food: food, mealType: mealType, dailyLog: dailyLog)
                 }
             }
-            .onSubmit(of: .text) {
-                searchFood()
+            .sheet(isPresented: $showingBarcodeScanner) {
+                BarcodeScannerView { barcode in
+                    showingBarcodeScanner = false
+                    handleBarcodeScan(barcode)
+                }
             }
         }
     }
     
     @ViewBuilder
     private var foodSearchResultsView: some View {
-        if isSearching {
-            SwiftUI.ProgressView("Searching...")  // ✅ Prefixed to avoid name clash
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if isSearching || isBarcodeSearching {
+            VStack(spacing: 16) {
+                Spacer()
+                SwiftUI.ProgressView()
+                    .scaleEffect(1.2)
+                Text(isBarcodeSearching ? "Looking up barcode..." : "Searching...")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
         } else if let error = errorMessage {
-            // ✅ Now you'll see exactly what's going wrong
-            VStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.largeTitle)
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
                     .foregroundColor(.orange)
                 Text(error)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                    .padding(.horizontal, 40)
+                Button(action: {
+                    errorMessage = nil
+                    searchResults = []
+                }) {
+                    Text("Try Again")
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .background(Color.blue)
+                        .cornerRadius(20)
+                }
+                Spacer()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if searchResults.isEmpty && !searchText.isEmpty {
-            VStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .font(.largeTitle)
-                    .foregroundColor(.secondary)
-                Text("No results found")
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
+        } else if !searchResults.isEmpty {
             List(searchResults, id: \.id) { food in
                 FoodResultRow(food: food) {
                     selectedFood = food
                     showingDetail = true
                 }
             }
+            .listStyle(.plain)
+        } else if !searchText.isEmpty {
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 56))
+                    .foregroundColor(.secondary.opacity(0.5))
+                Text("No results for")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text("\"\(searchText)\"")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text("Try a different search term or scan a barcode")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                Spacer()
+            }
+        } else {
+            VStack(spacing: 24) {
+                Spacer()
+                Image(systemName: "magnifyingglass.circle")
+                    .font(.system(size: 64))
+                    .foregroundColor(.blue.opacity(0.3))
+                VStack(spacing: 8) {
+                    Text("Find your food")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    Text("Search by name or scan a barcode\nto add food to \(mealType.rawValue)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+                HStack(spacing: 10) {
+                    TipPill(icon: "text.magnifyingglass", text: "Search by name")
+                    TipPill(icon: "barcode.viewfinder", text: "Scan barcode")
+                }
+                Spacer()
+            }
         }
     }
     
     func searchFood() {
         guard !searchText.isEmpty else { return }
-        print("App ID: '\(EdamamConfig.appId)'")
-        print("App Key: '\(EdamamConfig.appKey)'")
+        
         isSearching = true
         searchResults = []
-        errorMessage = nil  // ✅ Clear previous error
+        errorMessage = nil
         
         Task {
             do {
-                let results = try await EdamamService.shared.searchFood(query: searchText)
+                let results = try await OpenFoodFactsService.shared.searchFood(query: searchText)
                 await MainActor.run {
                     searchResults = results
                     isSearching = false
@@ -105,10 +188,70 @@ struct FoodSearchView: View {
             } catch {
                 await MainActor.run {
                     isSearching = false
-                    errorMessage = error.localizedDescription  // ✅ Show error to user
+                    errorMessage = error.localizedDescription
                 }
             }
         }
+    }
+    
+    func handleBarcodeScan(_ barcode: String) {
+        isBarcodeSearching = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                if let foodItem = try await OpenFoodFactsService.shared.lookupBarcode(barcode) {
+                    await MainActor.run {
+                        addFoodToMeal(foodItem)
+                        isBarcodeSearching = false
+                        dismiss()
+                    }
+                } else {
+                    await MainActor.run {
+                        isBarcodeSearching = false
+                        errorMessage = "No food found for this barcode."
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isBarcodeSearching = false
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    func addFoodToMeal(_ food: FoodItem) {
+        modelContext.insert(food)
+        
+        if let meal = (dailyLog.meals ?? []).first(where: { $0.type == mealType }) {
+            if meal.foodItems == nil {
+                meal.foodItems = [food]
+            } else {
+                meal.foodItems?.append(food)
+            }
+        }
+        
+        try? modelContext.save()
+    }
+}
+
+struct TipPill: View {
+    let icon: String
+    let text: String
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+            Text(text)
+                .font(.caption)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(.systemGray5))
+        .cornerRadius(20)
+        .foregroundColor(.secondary)
     }
 }
 
