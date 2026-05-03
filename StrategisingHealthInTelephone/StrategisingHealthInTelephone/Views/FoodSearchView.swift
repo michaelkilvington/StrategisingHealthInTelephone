@@ -86,7 +86,8 @@ struct FoodSearchView: View {
     
     func searchFood() {
         guard !searchText.isEmpty else { return }
-        
+        print("App ID: '\(EdamamConfig.appId)'")
+        print("App Key: '\(EdamamConfig.appKey)'")
         isSearching = true
         searchResults = []
         errorMessage = nil  // ✅ Clear previous error

@@ -1,9 +1,3 @@
-//
-//  CSVService.swift
-//  StrategisingHealthInTelephone
-//
-//  Created by Michael Kilvington on 3/5/2026.
-//
 import Foundation
 import SwiftData
 
@@ -90,7 +84,7 @@ class CSVService {
         return writeToTemp(csv, filename: "all_data.csv")
     }
     
-    // MARK: - Import
+    // MARK: - CSV Import
     
     func importMyFitnessPalWeightCSV(url: URL, modelContext: ModelContext) {
         guard url.startAccessingSecurityScopedResource() else { return }
@@ -101,12 +95,10 @@ class CSVService {
         let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
         guard lines.count > 1 else { return }
         
-        // MyFitnessPal weight CSV format: Date,Weight
         let formatter = DateFormatter()
-        // Try common MFP date formats
         let dateFormats = ["yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy"]
         
-        for line in lines.dropFirst() { // skip header
+        for line in lines.dropFirst() {
             let columns = line.components(separatedBy: ",")
             guard columns.count >= 2 else { continue }
             
@@ -128,13 +120,79 @@ class CSVService {
             
             guard let date = parsedDate else { continue }
             
-            // Check for duplicates before inserting
             let checkDate = date
             let descriptor = FetchDescriptor<WeightLog>(
                 predicate: #Predicate { $0.date == checkDate }
             )
             if (try? modelContext.fetch(descriptor).isEmpty) ?? true {
                 modelContext.insert(WeightLog(date: date, weight: weight))
+            }
+        }
+        
+        try? modelContext.save()
+    }
+    
+    // MARK: - JSON Import
+    
+    // ✅ startYear is now passed in from the UI instead of hardcoded
+    func importMyFitnessPalWeightJSON(url: URL, modelContext: ModelContext, startYear: Int) {
+        guard url.startAccessingSecurityScopedResource() else { return }
+        defer { url.stopAccessingSecurityScopedResource() }
+        
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONDecoder().decode(MFPWeightExport.self, from: data) else {
+            print("Failed to parse MFP JSON")
+            return
+        }
+        
+        let allResults = json.outcome.results
+        guard !allResults.isEmpty else { return }
+        
+        var inferredYear = startYear
+        var lastMonth: Int? = nil
+        let calendar = Calendar.current
+        var lastImportedWeight: Double? = nil
+        
+        for entry in allResults {
+            let parts = entry.date.components(separatedBy: "/")
+            guard parts.count == 2,
+                  let month = Int(parts[0]),
+                  let day = Int(parts[1]) else { continue }
+            
+            // ✅ Increment year at each 12→1 boundary
+            if let last = lastMonth, month < last {
+                inferredYear += 1
+            }
+            lastMonth = month
+            
+            // ✅ Skip zero entries — no weigh-in recorded
+            guard entry.total > 0 else { continue }
+            
+            // ✅ Skip forward-filled duplicates — only import on weight change
+            if entry.total == lastImportedWeight { continue }
+            lastImportedWeight = entry.total
+            
+            // ✅ Build date from components — reliable and locale-independent
+            var components = DateComponents()
+            components.year = inferredYear
+            components.month = month
+            components.day = day
+            components.hour = 0
+            components.minute = 0
+            components.second = 0
+            
+            guard let date = calendar.date(from: components) else { continue }
+            
+            // ✅ Skip future dates
+            guard date <= Date() else { continue }
+            
+            // ✅ Skip duplicates already in the database
+            let startOfDay = calendar.startOfDay(for: date)
+            let descriptor = FetchDescriptor<WeightLog>(
+                predicate: #Predicate { $0.date == startOfDay }
+            )
+            if (try? modelContext.fetch(descriptor).isEmpty) ?? true {
+                modelContext.insert(WeightLog(date: startOfDay, weight: entry.total))
             }
         }
         
@@ -153,4 +211,19 @@ class CSVService {
             return nil
         }
     }
+}
+
+// MARK: - MFP JSON Models
+
+private struct MFPWeightExport: Codable {
+    let outcome: MFPOutcome
+}
+
+private struct MFPOutcome: Codable {
+    let results: [MFPWeightEntry]
+}
+
+private struct MFPWeightEntry: Codable {
+    let date: String
+    let total: Double
 }

@@ -2,12 +2,10 @@ import Foundation
 
 struct EdamamConfig {
     static var appId: String {
-        get { UserDefaults.standard.string(forKey: "edamam_app_id") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "edamam_app_id") }
+        Bundle.main.object(forInfoDictionaryKey: "EDAMAM_APP_ID") as? String ?? ""
     }
     static var appKey: String {
-        get { UserDefaults.standard.string(forKey: "edamam_app_key") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "edamam_app_key") }
+        Bundle.main.object(forInfoDictionaryKey: "EDAMAM_APP_KEY") as? String ?? ""
     }
 }
 

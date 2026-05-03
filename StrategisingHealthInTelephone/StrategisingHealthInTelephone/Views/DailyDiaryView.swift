@@ -11,57 +11,77 @@ struct DailyDiaryView: View {
     @State private var showingBarcodeScanner = false
     @State private var showingCompletionAlert = false
     @State private var projectedWeightLoss: Double = 0
+    @State private var dailyLog: DailyLog?
+    @State private var selectedDate: Date = Date()
+    @State private var showingDatePicker = false
     
     var todaysLogs: [DailyLog] {
-        let startOfDay = Calendar.current.startOfDay(for: Date())
+        let startOfDay = Calendar.current.startOfDay(for: selectedDate)
         let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay)!
         return allDailyLogs.filter { $0.date >= startOfDay && $0.date < endOfDay }
     }
     
-    var currentLog: DailyLog {
-        if let existing = todaysLogs.first {
-            return existing
+    var isToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
+    }
+    
+    var navigationTitle: String {
+        if isToday {
+            return "Today's Diary"
         }
-        let newLog = DailyLog(date: Date())
-        for mealType in MealType.allCases {
-            newLog.meals.append(Meal(type: mealType, date: Date()))
-        }
-        modelContext.insert(newLog)
-        try? modelContext.save()
-        return newLog
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: selectedDate)
     }
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    calorieProgressSection
+                    dateNavigationBar
                     
-                    macroProgressSection
-                    
-                    ForEach(MealType.allCases, id: \.self) { mealType in
-                        MealSectionView(
-                            mealType: mealType,
-                            meal: currentLog.meals.first { $0.type == mealType },
-                            onAddFood: {
-                                selectedMealType = mealType
-                                showingFoodSearch = true
-                            }
-                        )
-                    }
-                    
-                    if !currentLog.isCompleted {
-                        completeDiaryButton
+                    if let log = dailyLog {
+                        calorieProgressSection(log: log)
+                        macroProgressSection(log: log)
+                        
+                        ForEach(MealType.allCases, id: \.self) { mealType in
+                            MealSectionView(
+                                mealType: mealType,
+                                meal: log.meals.first { $0.type == mealType },
+                                onAddFood: {
+                                    selectedMealType = mealType
+                                    showingFoodSearch = true
+                                }
+                            )
+                        }
+                        
+                        projectionButton(log: log)
+                        
                     } else {
-                        Text("Diary Completed")
-                            .foregroundColor(.green)
-                            .font(.headline)
+                        SwiftUI.ProgressView("Loading...")
                     }
                 }
                 .padding()
             }
-            .navigationTitle("Today's Diary")
+            .navigationTitle(navigationTitle)
+            .onAppear {
+                setupDailyLog()
+            }
+            .onChange(of: allDailyLogs) {
+                if dailyLog == nil {
+                    setupDailyLog()
+                }
+            }
+            .onChange(of: selectedDate) {
+                dailyLog = nil
+                setupDailyLog()
+            }
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { showingDatePicker.toggle() }) {
+                        Image(systemName: "calendar")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         showingBarcodeScanner = true
@@ -70,9 +90,12 @@ struct DailyDiaryView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingDatePicker) {
+                DatePickerSheet(selectedDate: $selectedDate)
+            }
             .sheet(isPresented: $showingFoodSearch) {
-                if let mealType = selectedMealType {
-                    FoodSearchView(mealType: mealType, dailyLog: currentLog)
+                if let log = dailyLog, let mealType = selectedMealType {
+                    FoodSearchView(mealType: mealType, dailyLog: log)
                 }
             }
             .sheet(isPresented: $showingBarcodeScanner) {
@@ -80,7 +103,7 @@ struct DailyDiaryView: View {
                     handleBarcodeScan(barcode)
                 }
             }
-            .alert("5-Week Projection", isPresented: $showingCompletionAlert) {
+            .alert("Calorie Projection", isPresented: $showingCompletionAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("If you maintain this calorie intake daily for 5 weeks, you will lose approximately \(String(format: "%.1f", projectedWeightLoss)) kg")
@@ -88,53 +111,39 @@ struct DailyDiaryView: View {
         }
     }
     
-    var calorieProgressSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Calories")
-                    .font(.headline)
-                Spacer()
-                if let profile = profiles.first {
-                    Text("\(Int(currentLog.totalCalories)) / \(Int(profile.dailyCalorieTarget)) kcal")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+    var dateNavigationBar: some View {
+        HStack {
+            Button(action: {
+                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
+            }) {
+                Image(systemName: "chevron.left")
+                    .foregroundColor(.blue)
             }
             
-            SwiftUI.ProgressView(value: currentLog.totalCalories, total: profiles.first?.dailyCalorieTarget ?? 2000)
-                .progressViewStyle(LinearProgressViewStyle())
-                .tint(currentLog.totalCalories > (profiles.first?.dailyCalorieTarget ?? 2000) ? .red : .green)
+            Spacer()
             
-            if let profile = profiles.first {
-                Text("\(Int(profile.dailyCalorieTarget - currentLog.totalCalories)) kcal remaining")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            Button(action: { showingDatePicker.toggle() }) {
+                Text(isToday ? "Today" : navigationTitle)
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
             }
+            
+            Spacer()
+            
+            Button(action: {
+                selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate)!
+            }) {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(isToday ? .gray : .blue)
+            }
+            .disabled(isToday)
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(10)
+        .padding(.horizontal)
     }
     
-    var macroProgressSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Macronutrients")
-                .font(.headline)
-            
-            if let profile = profiles.first {
-                MacroProgressRow(name: "Protein", current: currentLog.totalProtein, target: profile.proteinTarget, color: .blue)
-                MacroProgressRow(name: "Carbs", current: currentLog.totalCarbs, target: profile.carbsTarget, color: .orange)
-                MacroProgressRow(name: "Fat", current: currentLog.totalFat, target: profile.fatTarget, color: .red)
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(10)
-    }
-    
-    var completeDiaryButton: some View {
-        Button(action: completeDiary) {
-            Text("Complete Diary & See Projection")
+    func projectionButton(log: DailyLog) -> some View {
+        Button(action: { showProjection(log: log) }) {
+            Text("See 5-Week Projection")
                 .font(.headline)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -144,19 +153,77 @@ struct DailyDiaryView: View {
         }
     }
     
-    func completeDiary() {
-        currentLog.isCompleted = true
-        currentLog.completionDate = Date()
-        
+    func setupDailyLog() {
+        if let existing = todaysLogs.first {
+            for mealType in MealType.allCases {
+                if !existing.meals.contains(where: { $0.type == mealType }) {
+                    existing.meals.append(Meal(type: mealType, date: selectedDate))
+                }
+            }
+            dailyLog = existing
+        } else {
+            let newLog = DailyLog(date: Calendar.current.startOfDay(for: selectedDate))
+            for mealType in MealType.allCases {
+                newLog.meals.append(Meal(type: mealType, date: selectedDate))
+            }
+            modelContext.insert(newLog)
+            dailyLog = newLog
+        }
+        try? modelContext.save()
+    }
+    
+    func showProjection(log: DailyLog) {
         if let profile = profiles.first {
-            projectedWeightLoss = currentLog.projectedWeightLoss(
+            projectedWeightLoss = log.projectedWeightLoss(
                 currentWeight: profile.currentWeight,
                 targetCalories: profile.dailyCalorieTarget
             )
         }
-        
-        try? modelContext.save()
         showingCompletionAlert = true
+    }
+    
+    func calorieProgressSection(log: DailyLog) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Calories")
+                    .font(.headline)
+                Spacer()
+                if let profile = profiles.first {
+                    Text("\(Int(log.totalCalories)) / \(Int(profile.dailyCalorieTarget)) kcal")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            SwiftUI.ProgressView(value: log.totalCalories, total: profiles.first?.dailyCalorieTarget ?? 2000)
+                .progressViewStyle(LinearProgressViewStyle())
+                .tint(log.totalCalories > (profiles.first?.dailyCalorieTarget ?? 2000) ? .red : .green)
+            
+            if let profile = profiles.first {
+                Text("\(Int(profile.dailyCalorieTarget - log.totalCalories)) kcal remaining")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+    }
+    
+    func macroProgressSection(log: DailyLog) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Macronutrients")
+                .font(.headline)
+            
+            if let profile = profiles.first {
+                MacroProgressRow(name: "Protein", current: log.totalProtein, target: profile.proteinTarget, color: .blue)
+                MacroProgressRow(name: "Carbs", current: log.totalCarbs, target: profile.carbsTarget, color: .orange)
+                MacroProgressRow(name: "Fat", current: log.totalFat, target: profile.fatTarget, color: .red)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
     }
     
     func handleBarcodeScan(_ barcode: String) {
@@ -167,6 +234,31 @@ struct DailyDiaryView: View {
                 }
             } catch {
                 print("Barcode lookup failed: \(error)")
+            }
+        }
+    }
+}
+
+struct DatePickerSheet: View {
+    @Binding var selectedDate: Date
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            DatePicker(
+                "Select Date",
+                selection: $selectedDate,
+                in: ...Date(),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .padding()
+            .navigationTitle("Select Date")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
             }
         }
     }
