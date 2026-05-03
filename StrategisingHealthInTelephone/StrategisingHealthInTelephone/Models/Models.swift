@@ -210,10 +210,12 @@ final class WeightLog {
     var id: UUID
     var date: Date
     var weight: Double
+    var photo: Data?  // ✅ Added for progress photo support
     
-    init(id: UUID = UUID(), date: Date = Date(), weight: Double) {
+    init(id: UUID = UUID(), date: Date = Date(), weight: Double, photo: Data? = nil) {
         self.id = id
         self.date = date
         self.weight = weight
+        self.photo = photo
     }
 }
