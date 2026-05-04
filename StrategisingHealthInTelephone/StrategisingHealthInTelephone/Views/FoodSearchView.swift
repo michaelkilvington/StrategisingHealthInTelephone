@@ -33,11 +33,9 @@ struct FoodSearchView: View {
     @State private var showingBarcodeScanner = false
     @State private var isBarcodeSearching = false
     
-    // ✅ Fetch recent food items from SwiftData, newest first, limit to 10
     @Query(sort: \FoodItem.dateAdded, order: .reverse) private var allFoodItems: [FoodItem]
 
     var recentFoodItems: [FoodItem] {
-        // Deduplicate by name so you don't see the same food 10 times
         var seen = Set<String>()
         return allFoodItems.filter { seen.insert($0.name).inserted }.prefix(10).map { $0 }
     }
@@ -174,7 +172,6 @@ struct FoodSearchView: View {
                 Spacer()
             }
         } else {
-            // ✅ Idle state — show recent items if available, otherwise show prompt
             VStack(spacing: 0) {
                 if !recentFoodItems.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {

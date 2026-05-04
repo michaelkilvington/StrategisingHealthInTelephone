@@ -134,7 +134,6 @@ class CSVService {
     
     // MARK: - JSON Import
     
-    // ✅ startYear is now passed in from the UI instead of hardcoded
     func importMyFitnessPalWeightJSON(url: URL, modelContext: ModelContext, startYear: Int) {
         guard url.startAccessingSecurityScopedResource() else { return }
         defer { url.stopAccessingSecurityScopedResource() }
@@ -159,20 +158,16 @@ class CSVService {
                   let month = Int(parts[0]),
                   let day = Int(parts[1]) else { continue }
             
-            // ✅ Increment year at each 12→1 boundary
             if let last = lastMonth, month < last {
                 inferredYear += 1
             }
             lastMonth = month
             
-            // ✅ Skip zero entries — no weigh-in recorded
             guard entry.total > 0 else { continue }
             
-            // ✅ Skip forward-filled duplicates — only import on weight change
             if entry.total == lastImportedWeight { continue }
             lastImportedWeight = entry.total
             
-            // ✅ Build date from components — reliable and locale-independent
             var components = DateComponents()
             components.year = inferredYear
             components.month = month
@@ -183,10 +178,8 @@ class CSVService {
             
             guard let date = calendar.date(from: components) else { continue }
             
-            // ✅ Skip future dates
             guard date <= Date() else { continue }
             
-            // ✅ Skip duplicates already in the database
             let startOfDay = calendar.startOfDay(for: date)
             let descriptor = FetchDescriptor<WeightLog>(
                 predicate: #Predicate { $0.date == startOfDay }

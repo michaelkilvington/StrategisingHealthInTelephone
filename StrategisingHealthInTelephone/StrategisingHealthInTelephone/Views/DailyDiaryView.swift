@@ -2,13 +2,12 @@ import SwiftUI
 import SwiftData
 
 struct DailyDiaryView: View {
-    @EnvironmentObject var appTheme: AppTheme  // ✅ Added
+    @EnvironmentObject var appTheme: AppTheme
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @Query private var allDailyLogs: [DailyLog]
     
-    @State private var selectedMealType: MealType?
-    @State private var showingFoodSearch = false
+    @State private var foodSearchConfig: FoodSearchConfig?
     @State private var showingCompletionAlert = false
     @State private var projectedWeightLoss: Double = 0
     @State private var dailyLog: DailyLog?
@@ -35,7 +34,6 @@ struct DailyDiaryView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // ✅ Background layer
                 if appTheme.useGradientBackground {
                     AppTheme.diaryGradient
                         .ignoresSafeArea()
@@ -77,8 +75,10 @@ struct DailyDiaryView: View {
                                             .foregroundColor(.secondary)
                                     }
                                     Button(action: {
-                                        selectedMealType = mealType
-                                        showingFoodSearch = true
+                                        foodSearchConfig = FoodSearchConfig(
+                                            mealType: mealType,
+                                            dailyLog: log
+                                        )
                                     }) {
                                         Image(systemName: "plus.circle.fill")
                                             .foregroundColor(.blue)
@@ -111,7 +111,6 @@ struct DailyDiaryView: View {
                                         .foregroundColor(.secondary)
                                 }
                             }
-                            // ✅ Make meal sections semi-transparent so gradient shows through
                             .listRowBackground(
                                 appTheme.useGradientBackground
                                     ? Color.white.opacity(0.15)
@@ -143,7 +142,6 @@ struct DailyDiaryView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
-                // ✅ Hide default List background so our ZStack background shows through
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle(navigationTitle)
@@ -165,14 +163,12 @@ struct DailyDiaryView: View {
             .sheet(isPresented: $showingDatePicker) {
                 DatePickerSheet(selectedDate: $selectedDate)
             }
-            .sheet(isPresented: $showingFoodSearch) {
-                if let log = dailyLog, let mealType = selectedMealType {
-                    FoodSearchView(
-                        mealType: mealType,
-                        dailyLog: log,
-                        onFoodAdded: { showingFoodSearch = false }
-                    )
-                }
+            .sheet(item: $foodSearchConfig) { config in
+                FoodSearchView(
+                    mealType: config.mealType,
+                    dailyLog: config.dailyLog,
+                    onFoodAdded: { foodSearchConfig = nil }
+                )
             }
             .alert("Calorie Projection", isPresented: $showingCompletionAlert) {
                 Button("OK", role: .cancel) { }
@@ -274,7 +270,6 @@ struct DailyDiaryView: View {
         }
         .padding()
         .background(
-            // ✅ Cards adapt to theme
             appTheme.useGradientBackground
                 ? Color.white.opacity(0.15)
                 : Color.white.opacity(0.08)
@@ -348,4 +343,10 @@ struct MacroProgressRow: View {
                 .tint(color)
         }
     }
+}
+
+struct FoodSearchConfig: Identifiable {
+    let id = UUID()
+    let mealType: MealType
+    let dailyLog: DailyLog
 }

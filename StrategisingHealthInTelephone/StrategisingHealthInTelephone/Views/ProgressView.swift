@@ -29,7 +29,6 @@ struct WeightProgressView: View {
                     
                     timeRangeSelector
                     
-                    // ✅ Show weight change for selected period
                     if !filteredLogs.isEmpty {
                         periodSummarySection
                     }
@@ -74,7 +73,6 @@ struct WeightProgressView: View {
         .cornerRadius(10)
     }
     
-    // ✅ Weight change summary for the currently selected time period
     var periodSummarySection: some View {
         let firstWeight = filteredLogs.first?.weight ?? 0
         let lastWeight = filteredLogs.last?.weight ?? 0
@@ -113,7 +111,6 @@ struct WeightProgressView: View {
                     .foregroundColor(.secondary)
             }
             Spacer()
-            // ✅ Show number of entries in period
             VStack(alignment: .trailing, spacing: 4) {
                 Text("Entries")
                     .font(.caption)

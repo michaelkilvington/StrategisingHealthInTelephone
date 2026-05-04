@@ -10,7 +10,7 @@ class OpenFoodFactsService {
     static let shared = OpenFoodFactsService()
     
     private let baseURL = "https://world.openfoodfacts.org"
-    // Required by OFF to identify your app
+    // Required by OFF to identify app
     private let userAgent = "StrategisingHealthInTelephone/1.0 (mkilvington@me.com)"
     
     private init() {}
@@ -83,7 +83,6 @@ class OpenFoodFactsService {
         
         let result = try JSONDecoder().decode(OFFProductResponse.self, from: data)
         
-        // ✅ status 0 means not found, 1 means found
         guard result.status == 1, let product = result.product else {
             throw OFFError.noResults
         }

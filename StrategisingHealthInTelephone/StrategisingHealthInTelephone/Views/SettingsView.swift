@@ -3,7 +3,7 @@ import SwiftData
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    @EnvironmentObject var appTheme: AppTheme  // ✅ Added
+    @EnvironmentObject var appTheme: AppTheme
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @State private var showingExporter = false
@@ -27,7 +27,6 @@ struct SettingsView: View {
                     }
                 }
 
-                // ✅ Appearance section with gradient toggle
                 Section("Appearance") {
                     Toggle(isOn: $appTheme.useGradientBackground) {
                         VStack(alignment: .leading, spacing: 4) {
