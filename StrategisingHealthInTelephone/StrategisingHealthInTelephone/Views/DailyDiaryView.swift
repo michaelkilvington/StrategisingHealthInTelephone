@@ -33,38 +33,112 @@ struct DailyDiaryView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
+            // ✅ List instead of ScrollView so swipeActions work
+            List {
+                // Date navigation
+                Section {
                     dateNavigationBar
-                    
-                    if let log = dailyLog {
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+                
+                if let log = dailyLog {
+                    // Calorie progress
+                    Section {
                         calorieProgressSection(log: log)
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    
+                    // Macro progress
+                    Section {
                         macroProgressSection(log: log)
-                        
-                        MealListView(
-                            log: log,
-                            onAddFood: { mealType in
-                                selectedMealType = mealType
-                                showingFoodSearch = true
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    
+                    // ✅ One section per meal type with swipe-to-delete on food items
+                    ForEach(MealType.allCases, id: \.self) { mealType in
+                        let meal = (log.meals ?? []).first { $0.type == mealType }
+                        Section {
+                            // Meal header row
+                            HStack {
+                                Text(mealType.rawValue)
+                                    .font(.headline)
+                                Spacer()
+                                if let meal = meal {
+                                    Text("\(Int(meal.totalCalories)) kcal")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                Button(action: {
+                                    selectedMealType = mealType
+                                    showingFoodSearch = true
+                                }) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundColor(.blue)
+                                }
                             }
-                        )
-                        
-                        projectionButton(log: log)
-                        
-                    } else {
+                            
+                            // Food items with swipe to delete
+                            if let meal = meal, !(meal.foodItems ?? []).isEmpty {
+                                ForEach(meal.foodItems ?? [], id: \.id) { food in
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(food.name)
+                                                .font(.subheadline)
+                                            Text("\(Int(food.calories)) kcal")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                    }
+                                    // ✅ Swipe actions work inside List
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button(role: .destructive) {
+                                            deleteFoodItem(food)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text("No items added")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                    // Projection button
+                    // Replace the projection button Section with this:
+                    Section {
+                        Button(action: { showProjection(log: log) }) {
+                            Text("See 5-Week Projection")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .cornerRadius(10)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 10, leading: 5, bottom: 10, trailing: 5))
+                        .listRowBackground(Color.clear)
+                    }
+                    
+                } else {
+                    Section {
                         SwiftUI.ProgressView("Loading...")
+                            .frame(maxWidth: .infinity)
                     }
                 }
-                .padding()
             }
+            .listStyle(.insetGrouped)
             .navigationTitle(navigationTitle)
-            .onAppear {
-                setupDailyLog()
-            }
+            .onAppear { setupDailyLog() }
             .onChange(of: allDailyLogs) {
-                if dailyLog == nil {
-                    setupDailyLog()
-                }
+                if dailyLog == nil { setupDailyLog() }
             }
             .onChange(of: selectedDate) {
                 dailyLog = nil
@@ -85,9 +159,7 @@ struct DailyDiaryView: View {
                     FoodSearchView(
                         mealType: mealType,
                         dailyLog: log,
-                        onFoodAdded: {
-                            showingFoodSearch = false
-                        }
+                        onFoodAdded: { showingFoodSearch = false }
                     )
                 }
             }
@@ -107,17 +179,13 @@ struct DailyDiaryView: View {
                 Image(systemName: "chevron.left")
                     .foregroundColor(.blue)
             }
-            
             Spacer()
-            
             Button(action: { showingDatePicker.toggle() }) {
                 Text(isToday ? "Today" : navigationTitle)
                     .font(.subheadline)
                     .foregroundColor(.blue)
             }
-            
             Spacer()
-            
             Button(action: {
                 selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate)!
             }) {
@@ -126,19 +194,7 @@ struct DailyDiaryView: View {
             }
             .disabled(isToday)
         }
-        .padding(.horizontal)
-    }
-    
-    func projectionButton(log: DailyLog) -> some View {
-        Button(action: { showProjection(log: log) }) {
-            Text("See 5-Week Projection")
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.blue)
-                .cornerRadius(10)
-        }
+        .padding(.vertical, 4)
     }
     
     func setupDailyLog() {
@@ -179,6 +235,11 @@ struct DailyDiaryView: View {
         showingCompletionAlert = true
     }
     
+    func deleteFoodItem(_ food: FoodItem) {
+        modelContext.delete(food)
+        try? modelContext.save()
+    }
+    
     func calorieProgressSection(log: DailyLog) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -191,11 +252,9 @@ struct DailyDiaryView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
             SwiftUI.ProgressView(value: log.totalCalories, total: profiles.first?.dailyCalorieTarget ?? 2000)
                 .progressViewStyle(LinearProgressViewStyle())
                 .tint(log.totalCalories > (profiles.first?.dailyCalorieTarget ?? 2000) ? .red : .green)
-            
             if let profile = profiles.first {
                 Text("\(Int(profile.dailyCalorieTarget - log.totalCalories)) kcal remaining")
                     .font(.caption)
@@ -211,7 +270,6 @@ struct DailyDiaryView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Macronutrients")
                 .font(.headline)
-            
             if let profile = profiles.first {
                 MacroProgressRow(name: "Protein", current: log.totalProtein, target: profile.proteinTarget, color: .blue)
                 MacroProgressRow(name: "Carbs", current: log.totalCarbs, target: profile.carbsTarget, color: .orange)
@@ -224,22 +282,7 @@ struct DailyDiaryView: View {
     }
 }
 
-struct MealListView: View {
-    let log: DailyLog
-    let onAddFood: (MealType) -> Void
-    
-    var body: some View {
-        ForEach(MealType.allCases, id: \.self) { mealType in
-            let meal = (log.meals ?? []).first { $0.type == mealType }
-            MealSectionView(
-                mealType: mealType,
-                meal: meal,
-                onAddFood: { onAddFood(mealType) }
-            )
-        }
-    }
-}
-
+// ✅ These structs are still used by other parts of the app
 struct DatePickerSheet: View {
     @Binding var selectedDate: Date
     @Environment(\.dismiss) private var dismiss
@@ -285,53 +328,5 @@ struct MacroProgressRow: View {
                 .progressViewStyle(LinearProgressViewStyle())
                 .tint(color)
         }
-    }
-}
-
-struct MealSectionView: View {
-    let mealType: MealType
-    let meal: Meal?
-    let onAddFood: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(mealType.rawValue)
-                    .font(.headline)
-                Spacer()
-                if let meal = meal {
-                    Text("\(Int(meal.totalCalories)) kcal")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                Button(action: onAddFood) {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(.blue)
-                }
-            }
-            
-            if let meal = meal, !(meal.foodItems ?? []).isEmpty {
-                ForEach(meal.foodItems ?? [], id: \.id) { food in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(food.name)
-                                .font(.subheadline)
-                            Text("\(Int(food.calories)) kcal")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
-                }
-            } else {
-                Text("No items added")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(10)
     }
 }
