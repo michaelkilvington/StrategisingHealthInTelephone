@@ -50,14 +50,20 @@ struct DailyDiaryView: View {
                     .listRowInsets(EdgeInsets())
                     
                     if let log = dailyLog {
+                        // ✅ Calorie progress wrapped in GlassCard
                         Section {
-                            calorieProgressSection(log: log)
+                            GlassCard {
+                                calorieProgressContent(log: log)
+                            }
                         }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                         
+                        // ✅ Macro progress wrapped in GlassCard
                         Section {
-                            macroProgressSection(log: log)
+                            GlassCard {
+                                macroProgressContent(log: log)
+                            }
                         }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
@@ -247,7 +253,8 @@ struct DailyDiaryView: View {
         try? modelContext.save()
     }
     
-    func calorieProgressSection(log: DailyLog) -> some View {
+    // ✅ Renamed to "content" functions — GlassCard provides the padding/background
+    func calorieProgressContent(log: DailyLog) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Calories")
@@ -268,16 +275,9 @@ struct DailyDiaryView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .padding()
-        .background(
-            appTheme.useGradientBackground
-                ? Color.white.opacity(0.15)
-                : Color.white.opacity(0.08)
-        )
-        .cornerRadius(10)
     }
     
-    func macroProgressSection(log: DailyLog) -> some View {
+    func macroProgressContent(log: DailyLog) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Macronutrients")
                 .font(.headline)
@@ -287,13 +287,6 @@ struct DailyDiaryView: View {
                 MacroProgressRow(name: "Fat", current: log.totalFat, target: profile.fatTarget, color: .red)
             }
         }
-        .padding()
-        .background(
-            appTheme.useGradientBackground
-                ? Color.white.opacity(0.15)
-                : Color.white.opacity(0.08)
-        )
-        .cornerRadius(10)
     }
 }
 
