@@ -29,6 +29,11 @@ struct WeightProgressView: View {
                     
                     timeRangeSelector
                     
+                    // ✅ Show weight change for selected period
+                    if !filteredLogs.isEmpty {
+                        periodSummarySection
+                    }
+                    
                     weightChartSection
                     
                     allLogsSection
@@ -53,17 +58,69 @@ struct WeightProgressView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Current Stats")
                 .font(.headline)
-            
             HStack(spacing: 20) {
                 StatBox(title: "Current", value: String(format: "%.1f", profile.currentWeight), unit: "kg")
                 StatBox(title: "Goal", value: String(format: "%.1f", profile.goalWeight), unit: "kg")
                 StatBox(title: "To Go", value: String(format: "%.1f", max(0, profile.currentWeight - profile.goalWeight)), unit: "kg")
             }
-            
             if let latestLog = weightLogs.last {
                 Text("Latest: \(String(format: "%.1f", latestLog.weight)) kg on \(formattedDate(latestLog.date))")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+    }
+    
+    // ✅ Weight change summary for the currently selected time period
+    var periodSummarySection: some View {
+        let firstWeight = filteredLogs.first?.weight ?? 0
+        let lastWeight = filteredLogs.last?.weight ?? 0
+        let change = lastWeight - firstWeight
+        let isLoss = change < 0
+        let changeAbs = abs(change)
+        let changeColor: Color = isLoss ? .green : (change > 0 ? .red : .secondary)
+        let changeSymbol = isLoss ? "↓" : (change > 0 ? "↑" : "–")
+        let periodLabel: String = {
+            switch timeRange {
+            case .week: return "Past week"
+            case .month: return "Past month"
+            case .threeMonths: return "Past 3 months"
+            case .year: return "Past year"
+            case .all: return "All time"
+            }
+        }()
+        
+        return HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(periodLabel)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(changeSymbol)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(changeColor)
+                    Text(String(format: "%.1f kg", changeAbs))
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(changeColor)
+                }
+                Text("\(String(format: "%.1f", firstWeight)) → \(String(format: "%.1f", lastWeight)) kg")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            // ✅ Show number of entries in period
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("Entries")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("\(filteredLogs.count)")
+                    .font(.title2)
+                    .fontWeight(.bold)
             }
         }
         .padding()
@@ -83,7 +140,6 @@ struct WeightProgressView: View {
     var filteredLogs: [WeightLog] {
         let calendar = Calendar.current
         let now = Date()
-        
         switch timeRange {
         case .week:
             let startDate = calendar.date(byAdding: .day, value: -7, to: now)!
@@ -102,13 +158,11 @@ struct WeightProgressView: View {
         }
     }
     
-    // ✅ Actual spread of visible data in days
     var dateRangeInDays: Int {
         guard let first = filteredLogs.first, let last = filteredLogs.last else { return 1 }
         return Calendar.current.dateComponents([.day], from: first.date, to: last.date).day ?? 1
     }
     
-    // ✅ Dynamic x-axis stride component based on actual data spread
     var xAxisStride: Calendar.Component {
         switch dateRangeInDays {
         case 0...14:   return .day
@@ -118,42 +172,37 @@ struct WeightProgressView: View {
         }
     }
     
-    // ✅ Dynamic x-axis stride count to prevent label crowding
     var xAxisStrideCount: Int {
         switch dateRangeInDays {
-        case 0...14:    return 1
-        case 15...60:   return 1
-        case 61...180:  return 1
-        case 181...365: return 2       // Every 2 months for ~1 year
-        case 366...730: return 3       // Every 3 months for ~2 years
-        case 731...1825: return 6      // Every 6 months for 2-5 years
-        default:        return 12      // Every year for 5+ years
+        case 0...14:     return 1
+        case 15...60:    return 1
+        case 61...180:   return 1
+        case 181...365:  return 2
+        case 366...730:  return 3
+        case 731...1825: return 6
+        default:         return 12
         }
     }
     
-    // ✅ Dynamic x-axis date format based on data spread
     var xAxisDateFormat: Date.FormatStyle {
         switch dateRangeInDays {
-        case 0...60:   return .dateTime.day().month(.abbreviated)
-        case 61...365: return .dateTime.month(.abbreviated)
+        case 0...60:    return .dateTime.day().month(.abbreviated)
+        case 61...365:  return .dateTime.month(.abbreviated)
         case 366...730: return .dateTime.month(.abbreviated).year(.twoDigits)
-        default:       return .dateTime.year()
+        default:        return .dateTime.year()
         }
     }
     
-    // ✅ Y-axis min with padding
     var weightMin: Double {
         let min = filteredLogs.map { $0.weight }.min() ?? 0
         return (min - 2).rounded(.down)
     }
     
-    // ✅ Y-axis max with padding
     var weightMax: Double {
         let max = filteredLogs.map { $0.weight }.max() ?? 100
         return (max + 2).rounded(.up)
     }
     
-    // ✅ Dynamic y-axis stride based on visible weight range
     var yAxisStride: Double {
         let range = weightMax - weightMin
         switch range {
@@ -189,7 +238,6 @@ struct WeightProgressView: View {
                         )
                         .foregroundStyle(Color.blue)
                         
-                        // ✅ Only show point marks on shorter ranges
                         if timeRange == .week || timeRange == .month {
                             PointMark(
                                 x: .value("Date", log.date, unit: .day),
@@ -211,7 +259,6 @@ struct WeightProgressView: View {
                     }
                 }
                 .frame(height: 250)
-                // ✅ Dynamic y-axis scale and labels
                 .chartYScale(domain: weightMin...weightMax)
                 .chartYAxis {
                     AxisMarks(values: .stride(by: yAxisStride)) { value in
@@ -224,7 +271,6 @@ struct WeightProgressView: View {
                         }
                     }
                 }
-                // ✅ Dynamic x-axis labels based on actual date range
                 .chartXAxis {
                     AxisMarks(values: .stride(by: xAxisStride, count: xAxisStrideCount)) { _ in
                         AxisGridLine()
@@ -251,7 +297,6 @@ struct WeightProgressView: View {
             } else {
                 ForEach(Array(weightLogs.reversed())) { log in
                     WeightLogRow(log: log, onDelete: { deleteWeightLog(log) })
-                    
                     if log.id != weightLogs.first?.id {
                         Divider()
                     }
@@ -294,9 +339,7 @@ struct WeightLogRow: View {
                         .font(.title3)
                         .fontWeight(.semibold)
                 }
-                
                 Spacer()
-                
                 HStack(spacing: 16) {
                     if let photoData = log.photo, let uiImage = UIImage(data: photoData) {
                         Button(action: { showingPhoto = true }) {
@@ -313,7 +356,6 @@ struct WeightLogRow: View {
                                 .frame(width: 44, height: 44)
                         }
                     }
-                    
                     Button(action: onDelete) {
                         Image(systemName: "trash")
                             .foregroundColor(.red)
@@ -371,9 +413,7 @@ struct PhotoViewerSheet: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Remove", role: .destructive) {
-                        onRemove()
-                    }
+                    Button("Remove", role: .destructive) { onRemove() }
                 }
             }
         }
@@ -419,14 +459,12 @@ struct AddWeightView: View {
             Form {
                 Section("Weight Entry") {
                     DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
-                    
                     HStack {
                         TextField("Weight", text: $weight)
                             .keyboardType(.decimalPad)
                         Text("kg")
                             .foregroundColor(.secondary)
                     }
-                    
                     if let profile = profiles.first {
                         Text("Current: \(String(format: "%.1f", profile.currentWeight)) kg")
                             .font(.caption)
@@ -443,9 +481,7 @@ struct AddWeightView: View {
                                 .frame(width: 60, height: 60)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                             Spacer()
-                            Button("Remove", role: .destructive) {
-                                photoData = nil
-                            }
+                            Button("Remove", role: .destructive) { photoData = nil }
                         }
                     } else {
                         Button(action: { showingCamera = true }) {
@@ -455,11 +491,9 @@ struct AddWeightView: View {
                 }
                 
                 Section {
-                    Button("Save Weight") {
-                        saveWeight()
-                    }
-                    .disabled(weight.isEmpty)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    Button("Save Weight") { saveWeight() }
+                        .disabled(weight.isEmpty)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
             .navigationTitle("Log Weight")
@@ -478,15 +512,12 @@ struct AddWeightView: View {
     
     func saveWeight() {
         guard let weightValue = Double(weight) else { return }
-        
         let weightLog = WeightLog(date: selectedDate, weight: weightValue)
         weightLog.photo = photoData
         modelContext.insert(weightLog)
-        
         if let profile = profiles.first {
             profile.currentWeight = weightValue
         }
-        
         try? modelContext.save()
         dismiss()
     }

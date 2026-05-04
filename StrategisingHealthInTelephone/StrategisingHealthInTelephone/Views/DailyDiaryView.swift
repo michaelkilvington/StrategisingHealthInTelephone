@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct DailyDiaryView: View {
+    @EnvironmentObject var appTheme: AppTheme  // ✅ Added
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @Query private var allDailyLogs: [DailyLog]
@@ -33,108 +34,118 @@ struct DailyDiaryView: View {
     
     var body: some View {
         NavigationStack {
-            // ✅ List instead of ScrollView so swipeActions work
-            List {
-                // Date navigation
-                Section {
-                    dateNavigationBar
+            ZStack {
+                // ✅ Background layer
+                if appTheme.useGradientBackground {
+                    AppTheme.diaryGradient
+                        .ignoresSafeArea()
+                } else {
+                    Color.black
+                        .ignoresSafeArea()
                 }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
                 
-                if let log = dailyLog {
-                    // Calorie progress
+                List {
                     Section {
-                        calorieProgressSection(log: log)
+                        dateNavigationBar
                     }
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowInsets(EdgeInsets())
                     
-                    // Macro progress
-                    Section {
-                        macroProgressSection(log: log)
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    
-                    // ✅ One section per meal type with swipe-to-delete on food items
-                    ForEach(MealType.allCases, id: \.self) { mealType in
-                        let meal = (log.meals ?? []).first { $0.type == mealType }
+                    if let log = dailyLog {
                         Section {
-                            // Meal header row
-                            HStack {
-                                Text(mealType.rawValue)
-                                    .font(.headline)
-                                Spacer()
-                                if let meal = meal {
-                                    Text("\(Int(meal.totalCalories)) kcal")
-                                        .font(.subheadline)
+                            calorieProgressSection(log: log)
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        
+                        Section {
+                            macroProgressSection(log: log)
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        
+                        ForEach(MealType.allCases, id: \.self) { mealType in
+                            let meal = (log.meals ?? []).first { $0.type == mealType }
+                            Section {
+                                HStack {
+                                    Text(mealType.rawValue)
+                                        .font(.headline)
+                                    Spacer()
+                                    if let meal = meal {
+                                        Text("\(Int(meal.totalCalories)) kcal")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Button(action: {
+                                        selectedMealType = mealType
+                                        showingFoodSearch = true
+                                    }) {
+                                        Image(systemName: "plus.circle.fill")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                                
+                                if let meal = meal, !(meal.foodItems ?? []).isEmpty {
+                                    ForEach(meal.foodItems ?? [], id: \.id) { food in
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(food.name)
+                                                    .font(.subheadline)
+                                                Text("\(Int(food.calories)) kcal")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            Spacer()
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            Button(role: .destructive) {
+                                                deleteFoodItem(food)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text("No items added")
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
-                                Button(action: {
-                                    selectedMealType = mealType
-                                    showingFoodSearch = true
-                                }) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
-                                }
                             }
-                            
-                            // Food items with swipe to delete
-                            if let meal = meal, !(meal.foodItems ?? []).isEmpty {
-                                ForEach(meal.foodItems ?? [], id: \.id) { food in
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(food.name)
-                                                .font(.subheadline)
-                                            Text("\(Int(food.calories)) kcal")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Spacer()
-                                    }
-                                    // ✅ Swipe actions work inside List
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            deleteFoodItem(food)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                            } else {
-                                Text("No items added")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                            // ✅ Make meal sections semi-transparent so gradient shows through
+                            .listRowBackground(
+                                appTheme.useGradientBackground
+                                    ? Color.white.opacity(0.15)
+                                    : Color.white.opacity(0.08)
+                            )
                         }
-                    }
-                    
-                    // Projection button
-                    // Replace the projection button Section with this:
-                    Section {
-                        Button(action: { showProjection(log: log) }) {
-                            Text("See 5-Week Projection")
-                                .font(.headline)
-                                .foregroundColor(.white)
+                        
+                        Section {
+                            Button(action: { showProjection(log: log) }) {
+                                Text("See 5-Week Projection")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .cornerRadius(10)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets(top: 10, leading: 5, bottom: 10, trailing: 5))
+                            .listRowBackground(Color.clear)
+                        }
+                        
+                    } else {
+                        Section {
+                            SwiftUI.ProgressView("Loading...")
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(10)
                         }
-                        .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 10, leading: 5, bottom: 10, trailing: 5))
                         .listRowBackground(Color.clear)
                     }
-                    
-                } else {
-                    Section {
-                        SwiftUI.ProgressView("Loading...")
-                            .frame(maxWidth: .infinity)
-                    }
                 }
+                .listStyle(.insetGrouped)
+                // ✅ Hide default List background so our ZStack background shows through
+                .scrollContentBackground(.hidden)
             }
-            .listStyle(.insetGrouped)
             .navigationTitle(navigationTitle)
             .onAppear { setupDailyLog() }
             .onChange(of: allDailyLogs) {
@@ -262,7 +273,12 @@ struct DailyDiaryView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(
+            // ✅ Cards adapt to theme
+            appTheme.useGradientBackground
+                ? Color.white.opacity(0.15)
+                : Color.white.opacity(0.08)
+        )
         .cornerRadius(10)
     }
     
@@ -277,12 +293,15 @@ struct DailyDiaryView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(
+            appTheme.useGradientBackground
+                ? Color.white.opacity(0.15)
+                : Color.white.opacity(0.08)
+        )
         .cornerRadius(10)
     }
 }
 
-// ✅ These structs are still used by other parts of the app
 struct DatePickerSheet: View {
     @Binding var selectedDate: Date
     @Environment(\.dismiss) private var dismiss

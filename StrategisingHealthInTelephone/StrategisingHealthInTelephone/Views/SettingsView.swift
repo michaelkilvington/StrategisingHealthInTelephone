@@ -1,14 +1,9 @@
-//
-//  SettingsView.swift
-//  StrategisingHealthInTelephone
-//
-//  Created by Michael Kilvington on 3/5/2026.
-//
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    @EnvironmentObject var appTheme: AppTheme  // ✅ Added
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [UserProfile]
     @State private var showingExporter = false
@@ -29,6 +24,18 @@ struct SettingsView: View {
                 Section("Profile") {
                     if let profile = profiles.first {
                         BindableProfileSection(profile: profile)
+                    }
+                }
+
+                // ✅ Appearance section with gradient toggle
+                Section("Appearance") {
+                    Toggle(isOn: $appTheme.useGradientBackground) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Gradient Background")
+                            Text("Applies to the diary view")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
 
@@ -70,7 +77,6 @@ struct SettingsView: View {
                     .foregroundColor(.blue)
                 }
 
-                // ✅ New JSON import section with start year input
                 Section("Import MyFitnessPal JSON") {
                     HStack {
                         Text("Data start year")
@@ -84,7 +90,7 @@ struct SettingsView: View {
                         showingJSONImporter = true
                     }
                     .foregroundColor(.blue)
-                    .disabled(Int(jsonImportStartYear) == nil)  // ✅ Disable if year is invalid
+                    .disabled(Int(jsonImportStartYear) == nil)
                 }
             }
             .navigationTitle("Settings")

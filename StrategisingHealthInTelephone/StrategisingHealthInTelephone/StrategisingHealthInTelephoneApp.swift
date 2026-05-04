@@ -10,6 +10,7 @@ import SwiftData
 
 @main
 struct StrategisingHealthInTelephoneApp: App {
+    @StateObject private var appTheme = AppTheme.shared
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             FoodItem.self,
@@ -36,6 +37,7 @@ struct StrategisingHealthInTelephoneApp: App {
         WindowGroup {
             ContentView()
                 .modelContainer(sharedModelContainer)
+                .environmentObject(appTheme)
         }
     }
 }
