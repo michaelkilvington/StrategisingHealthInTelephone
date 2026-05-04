@@ -33,6 +33,15 @@ struct FoodSearchView: View {
     @State private var showingBarcodeScanner = false
     @State private var isBarcodeSearching = false
     
+    // ✅ Fetch recent food items from SwiftData, newest first, limit to 10
+    @Query(sort: \FoodItem.dateAdded, order: .reverse) private var allFoodItems: [FoodItem]
+
+    var recentFoodItems: [FoodItem] {
+        // Deduplicate by name so you don't see the same food 10 times
+        var seen = Set<String>()
+        return allFoodItems.filter { seen.insert($0.name).inserted }.prefix(10).map { $0 }
+    }
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -165,27 +174,52 @@ struct FoodSearchView: View {
                 Spacer()
             }
         } else {
-            VStack(spacing: 24) {
-                Spacer()
-                Image(systemName: "magnifyingglass.circle")
-                    .font(.system(size: 64))
-                    .foregroundColor(.blue.opacity(0.3))
-                VStack(spacing: 8) {
-                    Text("Find your food")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    Text("Search by name or scan a barcode\nto add food to \(mealType.rawValue)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
+            // ✅ Idle state — show recent items if available, otherwise show prompt
+            VStack(spacing: 0) {
+                if !recentFoodItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text("Recently Logged")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        
+                        List(recentFoodItems, id: \.id) { food in
+                            FoodResultRow(food: FoodSearchResult(from: food)) {
+                                detailFood = FoodSearchResult(from: food)
+                            }
+                        }
+                        .listStyle(.plain)
+                    }
+                } else {
+                    VStack(spacing: 24) {
+                        Spacer()
+                        Image(systemName: "magnifyingglass.circle")
+                            .font(.system(size: 64))
+                            .foregroundColor(.blue.opacity(0.3))
+                        VStack(spacing: 8) {
+                            Text("Find your food")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            Text("Search by name or scan a barcode\nto add food to \(mealType.rawValue)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                        }
+                        HStack(spacing: 10) {
+                            TipPill(icon: "text.magnifyingglass", text: "Search by name")
+                            TipPill(icon: "barcode.viewfinder", text: "Scan barcode")
+                        }
+                        Spacer()
+                    }
                 }
-                HStack(spacing: 10) {
-                    TipPill(icon: "text.magnifyingglass", text: "Search by name")
-                    TipPill(icon: "barcode.viewfinder", text: "Scan barcode")
-                }
-                Spacer()
             }
         }
     }
@@ -462,5 +496,25 @@ struct NutritionRow: View {
             Text("\(String(format: "%.1f", value)) \(unit)")
                 .foregroundColor(.secondary)
         }
+    }
+}
+
+extension FoodSearchResult {
+    init(from item: FoodItem) {
+        self.init(
+            name: item.name,
+            brand: item.brand,
+            calories: item.calories,
+            protein: item.protein,
+            carbs: item.carbs,
+            fat: item.fat,
+            fiber: item.fiber,
+            sugar: item.sugar,
+            sodium: item.sodium,
+            servingSize: item.servingSize,
+            servingUnit: item.servingUnit,
+            barcode: item.barcode,
+            offId: item.offId
+        )
     }
 }
