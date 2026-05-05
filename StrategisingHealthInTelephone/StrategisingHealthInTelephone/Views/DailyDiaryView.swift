@@ -46,6 +46,7 @@ struct DailyDiaryView: View {
                 List {
                     Section {
                         dateNavigationBar
+                            .onTapGesture {}
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
@@ -60,7 +61,6 @@ struct DailyDiaryView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                         
-                        // ✅ Macro progress wrapped in GlassCard
                         Section {
                             GlassCard {
                                 macroProgressContent(log: log)
@@ -213,19 +213,26 @@ struct DailyDiaryView: View {
                 Image(systemName: "chevron.left")
                     .foregroundColor(.blue)
             }
+            .buttonStyle(.plain)
+            
             Spacer()
+            
             Button(action: { showingDatePicker.toggle() }) {
                 Text(isToday ? "Today" : navigationTitle)
                     .font(.subheadline)
                     .foregroundColor(.blue)
             }
+            .buttonStyle(.plain)
+            
             Spacer()
+            
             Button(action: {
                 selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate)!
             }) {
                 Image(systemName: "chevron.right")
                     .foregroundColor(isToday ? .gray : .blue)
             }
+            .buttonStyle(.plain)
             .disabled(isToday)
         }
         .padding(.vertical, 4)
