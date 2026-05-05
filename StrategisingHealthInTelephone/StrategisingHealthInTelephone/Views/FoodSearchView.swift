@@ -28,6 +28,8 @@ struct FoodSearchView: View {
     @State private var searchText = ""
     @State private var searchResults: [FoodSearchResult] = []
     @State private var isSearching = false
+    @State private var showingAddCustomFood = false
+
     @State private var detailFood: FoodSearchResult?
     @State private var errorMessage: String?
     @State private var showingBarcodeScanner = false
@@ -84,6 +86,11 @@ struct FoodSearchView: View {
             .navigationTitle("Add \(mealType.rawValue)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { showingAddCustomFood = true }) {
+                        Image(systemName: "plus.square")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Cancel") { dismiss() }
                 }
@@ -104,6 +111,9 @@ struct FoodSearchView: View {
                     showingBarcodeScanner = false
                     handleBarcodeScan(barcode)
                 }
+            }
+            .sheet(isPresented: $showingAddCustomFood) {
+                AddCustomFoodView()
             }
         }
     }
@@ -230,31 +240,38 @@ struct FoodSearchView: View {
         
         Task {
             do {
-                let results = try await OpenFoodFactsService.shared.searchFood(query: searchText)
+                async let offResults = OpenFoodFactsService.shared.searchFood(query: searchText)
+                async let customResults = CustomFoodService.shared.searchFoods(query: searchText)
+                
+                // ✅ Await separately so we can log each independently
+                let custom = try await customResults
+                let off = try await offResults
+                
+                print("🔵 OFF results: \(off.count)")
+                print("🟢 Custom DB results: \(custom.count)")
+                custom.forEach { print("   Custom: \($0.name)") }
+                
                 await MainActor.run {
-                    searchResults = results.map { food in
-                        FoodSearchResult(
-                            name: food.name,
-                            brand: food.brand,
-                            calories: food.calories,
-                            protein: food.protein,
-                            carbs: food.carbs,
-                            fat: food.fat,
-                            fiber: food.fiber,
-                            sugar: food.sugar,
-                            sodium: food.sodium,
-                            servingSize: food.servingSize,
-                            servingUnit: food.servingUnit,
-                            barcode: food.barcode,
-                            offId: food.offId
-                        )
+                    var seen = Set<String>()
+                    var merged: [FoodSearchResult] = []
+                    
+                    for food in custom + off.map({ FoodSearchResult(from: $0) }) {
+                        if seen.insert(food.name.lowercased()).inserted {
+                            merged.append(food)
+                        }
                     }
+                    
+                    print("🟡 Merged total: \(merged.count)")
+                    
+                    searchResults = merged
                     isSearching = false
+                    
                     if searchResults.isEmpty {
                         errorMessage = "No results found for \"\(searchText)\""
                     }
                 }
             } catch {
+                print("❌ Search error: \(error)")
                 await MainActor.run {
                     isSearching = false
                     errorMessage = error.localizedDescription
@@ -269,22 +286,22 @@ struct FoodSearchView: View {
         
         Task {
             do {
+                // ✅ Check custom DB first, then fall back to OFF
+                let customResult = try? await CustomFoodService.shared.lookupBarcode(barcode)
+                
+                if let result = customResult {
+                    await MainActor.run {
+                        isBarcodeSearching = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            detailFood = result
+                        }
+                    }
+                    return
+                }
+                
+                // Fall back to Open Food Facts
                 if let foodItem = try await OpenFoodFactsService.shared.lookupBarcode(barcode) {
-                    let result = FoodSearchResult(
-                        name: foodItem.name,
-                        brand: foodItem.brand,
-                        calories: foodItem.calories,
-                        protein: foodItem.protein,
-                        carbs: foodItem.carbs,
-                        fat: foodItem.fat,
-                        fiber: foodItem.fiber,
-                        sugar: foodItem.sugar,
-                        sodium: foodItem.sodium,
-                        servingSize: foodItem.servingSize,
-                        servingUnit: foodItem.servingUnit,
-                        barcode: foodItem.barcode,
-                        offId: foodItem.offId
-                    )
+                    let result = FoodSearchResult(from: foodItem)
                     await MainActor.run {
                         isBarcodeSearching = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
