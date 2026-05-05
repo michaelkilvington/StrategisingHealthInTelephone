@@ -13,6 +13,7 @@ struct DailyDiaryView: View {
     @State private var dailyLog: DailyLog?
     @State private var selectedDate: Date = Date()
     @State private var showingDatePicker = false
+    @State private var selectedFoodItem: FoodItem? = nil
     
     var todaysLogs: [DailyLog] {
         let startOfDay = Calendar.current.startOfDay(for: selectedDate)
@@ -103,6 +104,12 @@ struct DailyDiaryView: View {
                                             }
                                             Spacer()
                                         }
+                                        .contentShape(Rectangle())
+                                        .simultaneousGesture(
+                                            TapGesture().onEnded {
+                                                selectedFoodItem = food
+                                            }
+                                        )
                                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                             Button(role: .destructive) {
                                                 deleteFoodItem(food)

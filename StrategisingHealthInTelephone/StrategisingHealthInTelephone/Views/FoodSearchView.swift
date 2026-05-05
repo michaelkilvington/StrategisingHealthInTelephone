@@ -409,10 +409,14 @@ struct FoodDetailView: View {
     let mealType: MealType
     let dailyLog: DailyLog
     let onFoodAdded: () -> Void
+
+    var existingItem: FoodItem? = nil
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
     @State private var servings: Double = 1.0
+
+    private var baseCalories: Double { existingItem != nil ? food.calories : food.calories }
     
     private var adjustedCalories: Double { food.calories * servings }
     private var adjustedProtein: Double { food.protein * servings }
@@ -421,6 +425,8 @@ struct FoodDetailView: View {
     private var adjustedFiber: Double { food.fiber * servings }
     private var adjustedSugar: Double { food.sugar * servings }
     private var adjustedSodium: Double { food.sodium * servings }
+    
+    var isEditing: Bool { existingItem != nil }
     
     var body: some View {
         NavigationStack {
@@ -453,15 +459,28 @@ struct FoodDetailView: View {
                 }
                 
                 Section {
-                    Button("Add to \(mealType.rawValue)") {
-                        addFoodToMeal()
+                    Button(isEditing ? "Update \(mealType.rawValue)" : "Add to \(mealType.rawValue)") {
+                        isEditing ? updateFoodItem() : addFoodToMeal()
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .foregroundColor(.blue)
+                    
+                    if isEditing {
+                        Button("Remove from \(mealType.rawValue)", role: .destructive) {
+                            removeFoodItem()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    }
                 }
             }
-            .navigationTitle("Food Details")
+            .navigationTitle(isEditing ? "Edit Food" : "Food Details")
             .navigationBarTitleDisplayMode(.inline)
+
+            .onAppear {
+                if let existing = existingItem, food.servingSize > 0 {
+                    servings = existing.servingSize / food.servingSize
+                }
+            }
         }
     }
     
@@ -481,9 +500,7 @@ struct FoodDetailView: View {
             barcode: food.barcode,
             offId: food.offId
         )
-        
         modelContext.insert(newFood)
-        
         if let meal = (dailyLog.meals ?? []).first(where: { $0.type == mealType }) {
             if meal.foodItems == nil {
                 meal.foodItems = [newFood]
@@ -491,10 +508,30 @@ struct FoodDetailView: View {
                 meal.foodItems?.append(newFood)
             }
         }
-        
         try? modelContext.save()
         dismiss()
         onFoodAdded()
+    }
+    
+    func updateFoodItem() {
+        guard let existing = existingItem else { return }
+        existing.calories = adjustedCalories
+        existing.protein = adjustedProtein
+        existing.carbs = adjustedCarbs
+        existing.fat = adjustedFat
+        existing.fiber = adjustedFiber
+        existing.sugar = adjustedSugar
+        existing.sodium = adjustedSodium
+        existing.servingSize = food.servingSize * servings
+        try? modelContext.save()
+        dismiss()
+    }
+    
+    func removeFoodItem() {
+        guard let existing = existingItem else { return }
+        modelContext.delete(existing)
+        try? modelContext.save()
+        dismiss()
     }
 }
 
