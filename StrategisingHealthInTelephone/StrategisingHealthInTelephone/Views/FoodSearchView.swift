@@ -339,7 +339,7 @@ struct FoodSearchView: View {
             barcode: food.barcode,
             offId: food.offId
         )
-        
+        newFood.servings = servings
         modelContext.insert(newFood)
         
         if let meal = (dailyLog.meals ?? []).first(where: { $0.type == mealType }) {
@@ -477,8 +477,8 @@ struct FoodDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
 
             .onAppear {
-                if let existing = existingItem, food.servingSize > 0 {
-                    servings = existing.servingSize / food.servingSize
+                if let existing = existingItem {
+                    servings = existing.servings > 0 ? existing.servings : 1.0
                 }
             }
         }
@@ -500,6 +500,7 @@ struct FoodDetailView: View {
             barcode: food.barcode,
             offId: food.offId
         )
+        newFood.servings = servings
         modelContext.insert(newFood)
         if let meal = (dailyLog.meals ?? []).first(where: { $0.type == mealType }) {
             if meal.foodItems == nil {
@@ -523,6 +524,7 @@ struct FoodDetailView: View {
         existing.sugar = adjustedSugar
         existing.sodium = adjustedSodium
         existing.servingSize = food.servingSize * servings
+        existing.servings = servings
         try? modelContext.save()
         dismiss()
     }

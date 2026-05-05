@@ -48,6 +48,7 @@ final class FoodItem {
     var barcode: String? = nil
     var offId: String? = nil
     var dateAdded: Date = Date()
+    var servings: Double = 1.0
     
     var meal: Meal? = nil
     

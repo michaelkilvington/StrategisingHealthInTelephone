@@ -104,18 +104,20 @@ struct DailyDiaryView: View {
                                             }
                                             Spacer()
                                         }
-                                        .contentShape(Rectangle())
-                                        .simultaneousGesture(
-                                            TapGesture().onEnded {
-                                                selectedFoodItem = food
-                                            }
-                                        )
                                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                             Button(role: .destructive) {
                                                 deleteFoodItem(food)
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
                                             }
+                                        }
+                                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                            Button {
+                                                selectedFoodItem = food
+                                            } label: {
+                                                Label("Edit", systemImage: "pencil")
+                                            }
+                                            .tint(.blue)
                                         }
                                     }
                                 } else {
@@ -182,6 +184,18 @@ struct DailyDiaryView: View {
                     dailyLog: config.dailyLog,
                     onFoodAdded: { foodSearchConfig = nil }
                 )
+            }
+            .sheet(item: $selectedFoodItem) { food in
+                if let log = dailyLog,
+                   let meal = (log.meals ?? []).first(where: { $0.foodItems?.contains(where: { $0.id == food.id }) == true }) {
+                    FoodDetailView(
+                        food: FoodSearchResult(from: food),
+                        mealType: meal.type,
+                        dailyLog: log,
+                        onFoodAdded: { selectedFoodItem = nil },
+                        existingItem: food
+                    )
+                }
             }
             .alert("Calorie Projection", isPresented: $showingCompletionAlert) {
                 Button("OK", role: .cancel) { }
