@@ -442,10 +442,14 @@ struct FoodDetailView: View {
                 }
                 
                 Section("Serving") {
-                    Stepper("Servings: \(String(format: "%.1f", servings))", value: $servings, in: 0.5...10, step: 0.5)
-                    Text("Serving size: \(Int(food.servingSize))\(food.servingUnit)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    VStack(spacing: 12) {
+                        ServingControl(servings: $servings)
+                        
+                        Text("Serving size: \(String(format: "%.1f", food.servingSize * servings))\(food.servingUnit)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 
                 Section("Nutrition per Serving") {

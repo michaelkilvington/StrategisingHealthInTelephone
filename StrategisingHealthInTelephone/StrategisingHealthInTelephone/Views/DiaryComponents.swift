@@ -253,3 +253,97 @@ struct DiaryMealSection: View {
     }
 }
 
+struct ServingControl: View {
+    @Binding var servings: Double
+    @GestureState private var dragOffset: CGFloat = 0
+    @State private var baseServings: Double = 1.0
+    
+    private let minServings: Double = 0.1
+    private let maxServings: Double = 10.0
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: {
+                servings = max(minServings, (servings - 0.1).rounded(toPlaces: 1))
+            }) {
+                Image(systemName: "minus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .gesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { value in
+                        let delta = -value.translation.height / 50
+                        let newValue = (baseServings + delta).rounded(toPlaces: 1)
+                        servings = min(maxServings, max(minServings, newValue))
+                    }
+                    .onEnded { _ in
+                        baseServings = servings
+                    }
+            )
+            
+            Spacer()
+            
+            VStack(spacing: 2) {
+                Text(String(format: "%.1f", servings))
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                Text("servings")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .frame(minWidth: 80)
+            .gesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { value in
+                        let delta = -value.translation.height / 50
+                        let newValue = (baseServings + delta).rounded(toPlaces: 1)
+                        servings = min(maxServings, max(minServings, newValue))
+                    }
+                    .onEnded { _ in
+                        baseServings = servings
+                    }
+            )
+            
+            Spacer()
+            
+            Button(action: {
+                servings = min(maxServings, (servings + 0.1).rounded(toPlaces: 1))
+            }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .gesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { value in
+                        let delta = -value.translation.height / 50
+                        let newValue = (baseServings + delta).rounded(toPlaces: 1)
+                        servings = min(maxServings, max(minServings, newValue))
+                    }
+                    .onEnded { _ in
+                        baseServings = servings
+                    }
+            )
+        }
+        .padding(.vertical, 4)
+        .onAppear {
+            baseServings = servings
+        }
+    }
+}
+
+extension Double {
+    func rounded(toPlaces places: Int) -> Double {
+        let divisor = pow(10.0, Double(places))
+        return (self * divisor).rounded() / divisor
+    }
+}
+
