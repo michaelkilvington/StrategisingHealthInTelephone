@@ -52,7 +52,6 @@ struct DailyDiaryView: View {
                     .listRowInsets(EdgeInsets())
                     
                     if let log = dailyLog {
-                        // ✅ Calorie progress wrapped in GlassCard
                         Section {
                             GlassCard {
                                 calorieProgressContent(log: log)
@@ -71,68 +70,73 @@ struct DailyDiaryView: View {
                         
                         ForEach(MealType.allCases, id: \.self) { mealType in
                             let meal = (log.meals ?? []).first { $0.type == mealType }
+                            let items = meal?.foodItems ?? []
+                            
                             Section {
-                                HStack {
-                                    Text(mealType.rawValue)
-                                        .font(.headline)
-                                    Spacer()
-                                    if let meal = meal {
-                                        Text("\(Int(meal.totalCalories)) kcal")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Button(action: {
-                                        foodSearchConfig = FoodSearchConfig(
-                                            mealType: mealType,
-                                            dailyLog: log
-                                        )
-                                    }) {
-                                        Image(systemName: "plus.circle.fill")
-                                            .foregroundColor(.blue)
-                                    }
-                                }
-                                
-                                if let meal = meal, !(meal.foodItems ?? []).isEmpty {
-                                    ForEach(meal.foodItems ?? [], id: \.id) { food in
+                                VStack(spacing: 0) {
+                                    // ✅ Header — top corners only
+                                    ConnectedGlassCard(corners: [.topLeft, .topRight]) {
                                         HStack {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(food.name)
+                                            Text(mealType.rawValue)
+                                                .font(.headline)
+                                            Spacer()
+                                            if let meal = meal {
+                                                Text("\(Int(meal.totalCalories)) kcal")
                                                     .font(.subheadline)
-                                                Text("\(Int(food.calories)) kcal")
-                                                    .font(.caption)
                                                     .foregroundColor(.secondary)
                                             }
-                                            Spacer()
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                            Button(role: .destructive) {
-                                                deleteFoodItem(food)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
+                                            Button(action: {
+                                                foodSearchConfig = FoodSearchConfig(
+                                                    mealType: mealType,
+                                                    dailyLog: log
+                                                )
+                                            }) {
+                                                Image(systemName: "plus.circle.fill")
+                                                    .foregroundColor(.blue)
                                             }
-                                        }
-                                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                            Button {
-                                                selectedFoodItem = food
-                                            } label: {
-                                                Label("Edit", systemImage: "pencil")
-                                            }
-                                            .tint(.blue)
+                                            .buttonStyle(.plain)
                                         }
                                     }
-                                } else {
-                                    Text("No items added")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    
+                                    if items.isEmpty {
+                                        // ✅ Empty — bottom corners only
+                                        ConnectedGlassCard(corners: [.bottomLeft, .bottomRight]) {
+                                            Text("No items added")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                    } else {
+                                        ForEach(Array(items.enumerated()), id: \.element.id) { index, food in
+                                            let isLast = index == items.count - 1
+                                            let corners: UIRectCorner = isLast ? [.bottomLeft, .bottomRight] : []
+                                            
+                                            SwipeableRow(
+                                                onEdit: { selectedFoodItem = food },
+                                                onDelete: { deleteFoodItem(food) }
+                                            ) {
+                                                // ✅ Same ConnectedGlassCard as header, correct corners per position
+                                                ConnectedGlassCard(corners: corners) {
+                                                    HStack {
+                                                        VStack(alignment: .leading, spacing: 2) {
+                                                            Text(food.name)
+                                                                .font(.subheadline)
+                                                            Text("\(Int(food.calories)) kcal")
+                                                                .font(.caption)
+                                                                .foregroundColor(.secondary)
+                                                        }
+                                                        Spacer()
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                            .listRowBackground(
-                                appTheme.useGradientBackground
-                                    ? Color.white.opacity(0.15)
-                                    : Color.white.opacity(0.08)
-                            )
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                            .listRowSeparator(.hidden)
                         }
-                        
                         Section {
                             Button(action: { showProjection(log: log) }) {
                                 Text("See 5-Week Projection")
@@ -281,7 +285,6 @@ struct DailyDiaryView: View {
         try? modelContext.save()
     }
     
-    // ✅ Renamed to "content" functions — GlassCard provides the padding/background
     func calorieProgressContent(log: DailyLog) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
