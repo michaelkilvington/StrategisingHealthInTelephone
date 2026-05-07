@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+import SwiftUI
+
 struct SwipeableRow<Content: View>: View {
     let content: Content
     let onEdit: () -> Void
@@ -15,6 +17,7 @@ struct SwipeableRow<Content: View>: View {
     
     @State private var offset: CGFloat = 0
     @State private var rowHeight: CGFloat = 0
+    @State private var isDeleting = false
     
     private let actionWidth: CGFloat = 160
     
@@ -33,6 +36,7 @@ struct SwipeableRow<Content: View>: View {
                         Color.clear.onAppear { rowHeight = geo.size.height }
                     }
                 )
+            
             GeometryReader { geometry in
                 HStack(spacing: 0) {
                     content
@@ -59,8 +63,11 @@ struct SwipeableRow<Content: View>: View {
                         .buttonStyle(.plain)
                         
                         Button(action: {
-                            withAnimation(.spring()) { offset = 0 }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            withAnimation(.easeIn(duration: 0.25)) {
+                                offset = -geometry.size.width - actionWidth
+                                isDeleting = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                                 onDelete()
                             }
                         }) {
@@ -83,6 +90,7 @@ struct SwipeableRow<Content: View>: View {
                 .gesture(
                     DragGesture(minimumDistance: 10, coordinateSpace: .local)
                         .onChanged { value in
+                            guard !isDeleting else { return }
                             let drag = value.translation.width
                             if drag < 0 {
                                 offset = max(-actionWidth, drag)
@@ -91,6 +99,7 @@ struct SwipeableRow<Content: View>: View {
                             }
                         }
                         .onEnded { value in
+                            guard !isDeleting else { return }
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 offset = value.translation.width < -40 ? -actionWidth : 0
                             }
@@ -98,6 +107,7 @@ struct SwipeableRow<Content: View>: View {
                 )
                 .simultaneousGesture(
                     TapGesture().onEnded {
+                        guard !isDeleting else { return }
                         if offset < 0 {
                             withAnimation(.spring()) { offset = 0 }
                         }
@@ -108,6 +118,10 @@ struct SwipeableRow<Content: View>: View {
             .clipped()
         }
         .frame(height: rowHeight)
+        .frame(height: isDeleting ? 0 : rowHeight)
+        .opacity(isDeleting ? 0 : 1)
+        .animation(.easeIn(duration: 0.25).delay(0.15), value: isDeleting)
+        .clipped()
     }
 }
 
