@@ -74,7 +74,6 @@ struct DailyDiaryView: View {
                             
                             Section {
                                 VStack(spacing: 0) {
-                                    // ✅ Header — top corners only
                                     ConnectedGlassCard(corners: [.topLeft, .topRight]) {
                                         HStack {
                                             Text(mealType.rawValue)
@@ -99,7 +98,6 @@ struct DailyDiaryView: View {
                                     }
                                     
                                     if items.isEmpty {
-                                        // ✅ Empty — bottom corners only
                                         ConnectedGlassCard(corners: [.bottomLeft, .bottomRight]) {
                                             Text("No items added")
                                                 .font(.caption)
@@ -115,7 +113,6 @@ struct DailyDiaryView: View {
                                                 onEdit: { selectedFoodItem = food },
                                                 onDelete: { deleteFoodItem(food) }
                                             ) {
-                                                // ✅ Same ConnectedGlassCard as header, correct corners per position
                                                 ConnectedGlassCard(corners: corners) {
                                                     HStack {
                                                         VStack(alignment: .leading, spacing: 2) {

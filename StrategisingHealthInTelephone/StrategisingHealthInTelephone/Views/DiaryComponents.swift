@@ -14,11 +14,9 @@ struct SwipeableRow<Content: View>: View {
     let onDelete: () -> Void
     
     @State private var offset: CGFloat = 0
-    @State private var showingActions = false
+    @State private var rowHeight: CGFloat = 0
     
-    private let actionWidth: CGFloat = 160  // Total width of both action buttons
-    private let editWidth: CGFloat = 80
-    private let deleteWidth: CGFloat = 80
+    private let actionWidth: CGFloat = 160
     
     init(onEdit: @escaping () -> Void, onDelete: @escaping () -> Void, @ViewBuilder content: () -> Content) {
         self.content = content()
@@ -27,94 +25,89 @@ struct SwipeableRow<Content: View>: View {
     }
     
     var body: some View {
-        ZStack(alignment: .trailing) {
-            // ✅ Action buttons revealed by swipe
-            HStack(spacing: 0) {
-                // Edit button
-                Button(action: {
-                    withAnimation(.spring()) {
-                        offset = 0
-                        showingActions = false
-                    }
-                    onEdit()
-                }) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 16, weight: .medium))
-                        Text("Edit")
-                            .font(.caption2)
-                    }
-                    .foregroundColor(.white)
-                    .frame(width: editWidth)
-                    .frame(maxHeight: .infinity)
-                    .background(Color.blue)
-                }
-                
-                // Delete button
-                Button(action: {
-                    withAnimation(.spring()) {
-                        offset = 0
-                        showingActions = false
-                    }
-                    onDelete()
-                }) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 16, weight: .medium))
-                        Text("Delete")
-                            .font(.caption2)
-                    }
-                    .foregroundColor(.white)
-                    .frame(width: deleteWidth)
-                    .frame(maxHeight: .infinity)
-                    .background(Color.red)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 0))  // Actions sit behind content
-            .opacity(showingActions ? 1 : 0)
-            
-            // ✅ Main content — slides left to reveal actions
+        ZStack(alignment: .leading) {
             content
+                .opacity(0)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.onAppear { rowHeight = geo.size.height }
+                    }
+                )
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    content
+                        .frame(width: geometry.size.width)
+                    
+                    HStack(spacing: 0) {
+                        Button(action: {
+                            withAnimation(.spring()) { offset = 0 }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                onEdit()
+                            }
+                        }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 16, weight: .medium))
+                                Text("Edit")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(.white)
+                            .frame(width: 80)
+                            .frame(maxHeight: .infinity)
+                            .background(Color.blue)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: {
+                            withAnimation(.spring()) { offset = 0 }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                onDelete()
+                            }
+                        }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 16, weight: .medium))
+                                Text("Delete")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(.white)
+                            .frame(width: 80)
+                            .frame(maxHeight: .infinity)
+                            .background(Color.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .frame(width: actionWidth)
+                }
                 .offset(x: offset)
                 .gesture(
-                    DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                    DragGesture(minimumDistance: 10, coordinateSpace: .local)
                         .onChanged { value in
-                            // Only allow left swipe
-                            guard value.translation.width < 0 else {
-                                if showingActions {
-                                    offset = max(-actionWidth, value.translation.width - actionWidth)
-                                }
-                                return
-                            }
-                            if showingActions {
-                                offset = max(-actionWidth, -actionWidth + value.translation.width)
-                            } else {
-                                offset = max(-actionWidth, value.translation.width)
+                            let drag = value.translation.width
+                            if drag < 0 {
+                                offset = max(-actionWidth, drag)
+                            } else if offset < 0 {
+                                offset = min(0, -actionWidth + drag)
                             }
                         }
                         .onEnded { value in
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                if value.translation.width < -40 {
-                                    offset = -actionWidth
-                                    showingActions = true
-                                } else {
-                                    offset = 0
-                                    showingActions = false
-                                }
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = value.translation.width < -40 ? -actionWidth : 0
                             }
                         }
                 )
-        }
-        .clipped()
-        // ✅ Tap anywhere on content when actions are showing closes them
-        .onTapGesture {
-            if showingActions {
-                withAnimation(.spring()) {
-                    offset = 0
-                    showingActions = false
-                }
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        if offset < 0 {
+                            withAnimation(.spring()) { offset = 0 }
+                        }
+                    }
+                )
             }
+            .frame(height: rowHeight)
+            .clipped()
         }
+        .frame(height: rowHeight)
     }
 }
 
@@ -141,7 +134,6 @@ struct ConnectedGlassCard<Content: View>: View {
     }
 }
 
-// ✅ Shape that lets us round only specific corners
 struct RoundedCorner: Shape {
     var radius: CGFloat
     var corners: UIRectCorner
@@ -171,7 +163,6 @@ struct ConnectedRowBackground: View {
     }
 }
 
-// ✅ Self-contained meal section with connected glass styling and swipe actions
 struct DiaryMealSection: View {
     @EnvironmentObject var appTheme: AppTheme
     let mealType: MealType
@@ -185,7 +176,6 @@ struct DiaryMealSection: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // ✅ Header — rounded top only
             ConnectedGlassCard(corners: [.topLeft, .topRight]) {
                 HStack {
                     Text(mealType.rawValue)
@@ -205,7 +195,6 @@ struct DiaryMealSection: View {
             }
             
             if foodItems.isEmpty {
-                // ✅ Empty state — rounded bottom only
                 ConnectedGlassCard(corners: [.bottomLeft, .bottomRight]) {
                     Text("No items added")
                         .font(.caption)
@@ -213,7 +202,6 @@ struct DiaryMealSection: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                // ✅ Each food item — no rounding except last item
                 ForEach(Array(foodItems.enumerated()), id: \.element.id) { index, food in
                     let isLast = index == foodItems.count - 1
                     let corners: UIRectCorner = isLast ? [.bottomLeft, .bottomRight] : []
@@ -230,7 +218,6 @@ struct DiaryMealSection: View {
                             Spacer()
                         }
                     }
-                    // ✅ Swipe actions on each item card
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             onDeleteFood(food)
