@@ -409,14 +409,12 @@ struct FoodDetailView: View {
     let mealType: MealType
     let dailyLog: DailyLog
     let onFoodAdded: () -> Void
-
     var existingItem: FoodItem? = nil
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
     @State private var servings: Double = 1.0
-
-    private var baseCalories: Double { existingItem != nil ? food.calories : food.calories }
+    @FocusState private var servingsFocused: Bool
     
     private var adjustedCalories: Double { food.calories * servings }
     private var adjustedProtein: Double { food.protein * servings }
@@ -442,14 +440,18 @@ struct FoodDetailView: View {
                 }
                 
                 Section("Serving") {
-                    VStack(spacing: 12) {
-                        ServingControl(servings: $servings)
-                        
-                        Text("Serving size: \(String(format: "%.1f", food.servingSize * servings))\(food.servingUnit)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack {
+                        Text("Servings")
+                        Spacer()
+                        TextField("1.0", value: $servings, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                            .focused($servingsFocused)
                     }
+                    Text("Serving size: \(String(format: "%.1f", food.servingSize * servings))\(food.servingUnit)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 
                 Section("Nutrition per Serving") {
@@ -461,25 +463,33 @@ struct FoodDetailView: View {
                     NutritionRow(label: "Sugar", value: adjustedSugar, unit: "g")
                     NutritionRow(label: "Sodium", value: adjustedSodium, unit: "mg")
                 }
-                
-                Section {
-                    Button(isEditing ? "Update \(mealType.rawValue)" : "Add to \(mealType.rawValue)") {
-                        isEditing ? updateFoodItem() : addFoodToMeal()
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .foregroundColor(.blue)
-                    
-                    if isEditing {
-                        Button("Remove from \(mealType.rawValue)", role: .destructive) {
-                            removeFoodItem()
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                }
             }
             .navigationTitle(isEditing ? "Edit Food" : "Food Details")
             .navigationBarTitleDisplayMode(.inline)
-
+            .toolbar {
+                if isEditing {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(role: .destructive, action: removeFoodItem) {
+                            Image(systemName: "trash")
+                        }
+                        .tint(.red)
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        isEditing ? updateFoodItem() : addFoodToMeal()
+                    }) {
+                        Text(isEditing ? "Update" : "Add")
+                            .fontWeight(.semibold)
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        servingsFocused = false
+                    }
+                }
+            }
             .onAppear {
                 if let existing = existingItem {
                     servings = existing.servings > 0 ? existing.servings : 1.0
